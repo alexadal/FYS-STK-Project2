@@ -34,7 +34,7 @@ X = ColumnTransformer(
     remainder="passthrough"
 ).fit_transform(X)
 
-y.shape
+print(X)
 
 # Train-test split
 trainingShare = 0.5
