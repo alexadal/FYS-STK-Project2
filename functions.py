@@ -175,30 +175,41 @@ That when called within another object, gives inheritance to the attributes
 Use classes and @staticmethod to avoid many different functions and easy the change of cost funtion 
 within the Neural Net class
 
+Note that the scaling is simplified as this does not change the algebraic behaviour to finf minima
+
 """
-class CrossECost:
+class CrossE_Cost:
     @staticmethod
     def cost_f(a, y):
         """Use np.nan_to_num to avoid nan of log part if a,y = 1 """
         return -np.sum(np.nan(y*np.log(a)+(1-y)*np.log(1-a)))
     @staticmethod
         #Y included for easy running of Neural Net Code
-        #delta = dC/da_out, sigmoid part cancels increasing learning
+        #delta = dC/da_out, sigmoid part cancels increasing learning pace
     def delta(z, a, y):
         return(a-y)
 
 
+class MSE_Cost:
+    @staticmethod
+    def cost_f(a, y):
+        return 0.5*(a-y)**2
+    @staticmethod
+        #Y included for easy running of Neural Net Code
+        #delta = dC/da_out, sigmoid
+    def delta(z, a, y):
+        return(a-y)*sigmoid(z)
 
 
 
-
-class NeuraNetwork:
+class NeuralNetwork:
     #Sizes is an array containing layers of corresponding neurons
     #Tune lambda for Regularization
     def __init__(
             self,
             X_data,
             Y_data,
+            cost = CrossE_Cost,
             sizes,
             epochs=10,
             batch_size=100,
@@ -207,6 +218,7 @@ class NeuraNetwork:
         self.X_data_full = X_data
         self.Y_data_full = Y_data
         self.sizes = sizes
+        self.cost = cost
         #self.n_inputs = X_data.shape[0]
         #self.n_features = X_data.shape[1]
         #self.n_hidden_neurons = n_hidden_neurons
@@ -263,10 +275,14 @@ class NeuraNetwork:
         delta_out = dC/da_out*da_out/dz
         
         - Start with computing derivatives of dC/db_out and dC/dw_out = delta_out*dz/dw_out
+        For backprop do not make distintion on dela_out as it is passed back into the layers in for 
+        loop
+        Reach end of array with [-1]
         
         """
-
-
+        delta = self.cost.delta(zs[-1],activations[-1],y)
+        der_w[-1] =
+        der_b[-1] =
 
 
         for h in range(2,self.n_layers):
@@ -355,17 +371,7 @@ if __name__ == "__main__":
 
     #print(step.shape)
     """
-"""
-[ 1043.15877062]
- [-1043.98909762]]
-Gradient (3, 1)
 
-Betas [[6664.01682755]
- [3234.95056589]
- [1727.37221704]]
-
-
-"""
 
 sizes = [2,3,1]
 
