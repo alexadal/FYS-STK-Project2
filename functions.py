@@ -8,6 +8,7 @@ import sys
 import matplotlib.pyplot as plt
 random.seed(209)
 np.random.seed(100)
+from sklearn.datasets import load_breast_cancer
 
 from sklearn.linear_model import LogisticRegression
 
@@ -26,7 +27,7 @@ def grid_search(class_input,sizes,X_test,y_test,etas,lamdbdas):
         for j,lamb in enumerate(lamdbdas):
             print("Eta",eta_in)
             #NN = NeuralNetwork(X_train,y_train,sizes,epochs=100, batch_size=50,eta=eta_in)
-            Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=50,eta=eta_in,lmbd=lamb)
+            Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in,lmbd=lamb)
             probabilities = Object.predict(X_test,classify=True)
             #print("Probabilities", probabilities)
             #print("Fasit",y)
@@ -35,11 +36,16 @@ def grid_search(class_input,sizes,X_test,y_test,etas,lamdbdas):
 
 
     print("Accuracies",accuracies)
-    fig, ax = plt.subplots(figsize=(20, 10))
+    fig, ax = plt.subplots(figsize=(20, 20))
     sns.heatmap(accuracies, annot=True, ax=ax, cmap="viridis")
     ax.set_title("Accuracy")
+    #ax.set_ylim(etas[-1],etas[0])
     ax.set_ylabel("$\eta$")
     ax.set_xlabel("$\lambda$")
+    #plt.xticks(lamdbdas)
+    #plt.yticks(etas)
+    #plt.ylim(etas[0],etas[-1])
+    #ax.xlim(lamdbdas[0],lamdbdas[-1])
     plt.show()
 
 
@@ -51,13 +57,18 @@ Functions used to generate data for testing
 
 #Generate data for testing
 def generate_data():
-    np.random.seed(0)
-    X, y = datasets.make_moons(200, noise=0.20)
+    #np.random.seed(0)
+    #X, y = datasets.make_moons(200, noise=0.20)
+    data = load_breast_cancer()
+    X = data.data
+    y = data.target
     return X, y
 
 def load_data(path, header):
     marks_df = pd.read_csv(path, header=header)
     return marks_df
+
+
 
 """ 
 --------------------------------------------------------------------
@@ -109,7 +120,7 @@ class logit:
 
     #Initiate random betas for grad descent
     def rnd_betas(self, m):
-        beta = 0.001*np.random.randn(m, 1)
+        beta = 10**-10*np.random.randn(m, 1)
         return beta
 
     #Get the gradient of log function
@@ -171,7 +182,7 @@ class logit:
     def update_m_batch(self,batchx,batchy,eta_fixed,epoch,m,i):
         gradients = self.gd(batchx,batchy,self.weights)
         eta = 0
-        if eta_fixed: eta=0.001
+        if eta_fixed: eta=0.0001
         else:eta= self.learning_schedule((epoch*m+i))
         #print("SGD eta",eta)
         self.weights -= eta*gradients
@@ -203,10 +214,23 @@ class logit:
                 self.weights -= eta*self.gd(X,y,betas_old)
             elif iter == 'SGD':
                 print("Batch_size",n)
-                self.SGD(X,y,100,int(len(X[:])/100),eta_fixed=True)
+                self.SGD(X,y,100,80,eta_fixed=True)
                 break
 
         return self.weights
+
+    def predict(self, X,classify=False):
+        prob = np.dot(self.weights,X)
+        classification = prob
+        if classify:
+            for i in range(len(prob)):
+                if prob[i] >= 0.5:
+                    classification[i] = 1
+                    #print(True)
+                else:
+                    classification[i] = 0
+                    #print(False)
+        return classification
 
 
     #Need to create predict
@@ -290,7 +314,7 @@ class NeuralNetwork:
         #Note x & y changed to use np.dot instead of matmul
         #Connections between prev layer with X number of neurons and next layer of neurons
 
-        self.weights = [0.001*np.random.randn(y, x) for x, y in zip(self.sizes[:-1], self.sizes[1:])]
+        self.weights = [np.random.randn(y, x) for x, y in zip(self.sizes[:-1], self.sizes[1:])]
         #print(self.weights)
 
 
@@ -472,31 +496,37 @@ Init tester
 #Create unit test for functions file
 if __name__ == "__main__":
 
+    """
     num_observations = 1000
     x1 = np.random.multivariate_normal([0, 0], [[1, .75],[.75, 1]], num_observations)
     x2 = np.random.multivariate_normal([1, 4], [[1, .75],[.75, 1]], num_observations)
     X = np.vstack((x1, x2)).astype(np.float32)
-    y= np.hstack((np.zeros(num_observations),np.ones(num_observations)))
+    y = np.hstack((np.zeros(num_observations),np.ones(num_observations)))
     X = np.hstack((np.ones((X.shape[0], 1)), X))
-
+    indices = np.arange(0,len(y))
+    np.random.shuffle(indices)
+    y = y[indices]
+    print(indices)
+    """
+    X, y = generate_data()
+    print("Shape X",X.shape)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2)
 
 
     logreg = logit(X,y)
     #print("Beta_vec",betas.shape)
-    #print("Betas", logreg.gd_fit(X,y,iter='NR'))
-    #clf = LogisticRegression(fit_intercept=True, C=1e15)
-    #clf.fit(X[:,1:], y.ravel())
-    #print("SKlearn results",clf.intercept_, clf.coef_)
+    print("Betas", logreg.gd_fit(X,y,iter='SGD'))
+    clf = LogisticRegression(fit_intercept=True, C=1e15)
+    clf.fit(X[:,1:], y.ravel())
+    print("SKlearn results",clf.intercept_, clf.coef_)
 
 
 
-    sizes = [3,50,1]
+    sizes = [30,50,50,1]
     etas = np.logspace(-5, -1, 20)
-    lamb = np.logspace(-5, -1, 7)
+    lamb = np.logspace(-5, -1, 20)
     #Run test funtion
     grid_search(NeuralNetwork,sizes,X_test,y_test,etas,lamb)
-
     sns.set()
     test_accuracy = np.zeros((len(etas), len(lamb)))
 
