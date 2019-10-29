@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 random.seed(209)
 np.random.seed(100)
 from sklearn.datasets import load_breast_cancer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
 from sklearn.linear_model import LogisticRegression
 
@@ -270,10 +271,10 @@ class MSE_Cost:
         #Y included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid
     def delta(z, a, y):
-        return(a-y)*sigmoid(z)
+        return(a-y)
 
 
-
+#Xavier & He
 class NeuralNetwork:
     #Sizes is an array containing layers of corresponding neurons
     #Tune lambda for Regularization
@@ -304,11 +305,11 @@ class NeuralNetwork:
         self.create_biases_and_weights()
         self.SGD(X,y,epochs,batch_size,eta)
 
-    def create_biases_and_weights(self,zeros=False):
+    def create_biases_and_weights(self,zeros=True):
         #self.weights = np.random.randn(self.n_features, self.n_hidden_neurons)
         #self.biases = np.zeros(self.n_hidden_neurons) + 0.01
 
-        if zeros:self.biases = [np.zeros(y, 1) for y in self.sizes[1:]]
+        if zeros:self.biases = [np.zeros((y)) for y in self.sizes[1:]]
         else:self.biases = [np.random.randn(y, 1) for y in self.sizes[1:]]
 
         #Note x & y changed to use np.dot instead of matmul
@@ -319,11 +320,11 @@ class NeuralNetwork:
 
 
     #Simple feed-forward algorithm
-    def feed_forward(self,a):
+    #def feed_forward(self,a):
         #Return activiation with a as input
-        for bias, weight in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(weight, a)+bias)
-        return a
+     #   for bias, weight in zip(self.biases, self.weights):
+      #      a = sigmoid(np.dot(weight, a)+bias)
+       # return a
 
 
     def backpropagate(self,X,y):
@@ -334,8 +335,9 @@ class NeuralNetwork:
         der_b = [np.zeros(bias.shape) for bias in self.biases]
         der_w = [np.zeros(weight.shape) for weight in self.weights]
         #Initialize activation arrays
-        X = X.reshape(-1,1)
+        #X = X.reshape(-1,1)
         activation = X
+        #print("Activation",activation.shape)
         #Store all activations and zs regardless of layer
         #activations = [x]
         activations = [X]
@@ -343,7 +345,9 @@ class NeuralNetwork:
 
         #Activate all layers
         for bias, weight in zip(self.biases, self.weights):
-            z = np.dot(weight, activation)+bias
+            #print("Wt",weight.shape)
+            z = np.matmul(activation,weight.T)+bias
+            #print("Z",z.shape)
             zs.append(z)
             activation = sigmoid(z)
             #print("Activations Back",activation)
@@ -361,11 +365,13 @@ class NeuralNetwork:
         Reach end of array with [-1]
         
         """
+        #print("Acti",activations[-1].shape)
+        #print("Y",y.shape)
 
-        delta = self.cost.delta(zs[-1],activations[-1],y)
+        delta = self.cost.delta(zs[-1],activations[-1],y.reshape(-1,1))
 
-        der_w[-1] = np.dot(delta,activations[-2].T)
-        der_b[-1] = delta
+        der_w[-1] = np.matmul(delta.T,activations[-2])
+        der_b[-1] = np.sum(delta,axis=0)
 
         #Start with next to out-layer
         for l in range(2,self.n_layers):
@@ -377,12 +383,13 @@ class NeuralNetwork:
             #delta_h = dC/d_ah X da_h/dz_h
             # 1. dC/da_h = delta_(h+1)*w_h+1
             # 2. da_h/dz_h = sigma'(z_h)
-            delta = np.dot(self.weights[-l+1].T,delta)*sig_der
+
+            delta = np.matmul(delta,self.weights[-l+1])*sig_der
             #print("Activations",activations[-l-1].T)
             #print("Weights",self.weights[-l+1].T.shape)
             #print("Activations",activations[0])
-            der_w[-l] = np.dot(delta,activations[-l-1].T)
-            der_b[-l] = delta
+            der_w[-l] = np.matmul(delta.T,activations[-l-1])
+            der_b[-l] = np.sum(delta,axis=0)
             #print("Derivate",der_w)
 
         return der_b, der_w
@@ -435,38 +442,32 @@ class NeuralNetwork:
 
         #print("eta_out",eta)
 
-        for x,y in zip(batchx,batchy):
+
             #Get dCx/dw & dCx/db
 
-            delta_der_b, delta_der_w = self.backpropagate(x, y)
+        der_b,der_w = self.backpropagate(batchx, batchy)
             # Calculate SUM_x(dCx/dw) & SUM_x(dCx/db)
-            der_b = [db + d_db for db,d_db in zip(der_b,delta_der_b)]
-            der_w = [dw + d_dw for dw, d_dw in zip(der_w, delta_der_w)]
-
-        self.biases = [b-(eta/m)*db for b,db in zip(self.biases,der_b)]
-        self.weights = [(1-(eta*lamd/m))*w-(eta/m)*dw for w,dw in zip(self.weights,der_w)]
+            #der_b = [db + d_db for db,d_db in zip(der_b,delta_der_b)]
+            #der_w = [dw + d_dw for dw, d_dw in zip(der_w, delta_der_w)]
+        self.biases = [b-(eta)*db for b,db in zip(self.biases,der_b)]
+        #self.biases = self.biases - (eta / m) * der_b
+        self.weights = [(1-(eta*lamd))*w-(eta)*dw for w,dw in zip(self.weights,der_w)]
 
 
 
 
     def feed_forward_out(self,X):
         #Return activiation with a as input
-        a = 0
+        a = X
         z_h = []
         probabilities = np.zeros(len(X[:]))
-        for i in range(len(X[:])):
-            X_in = X[i,:]
-            X_in.reshape(-1,1)
-            """
-            for bias, weight in zip(self.biases, self.weights):
-                #print("Sample",activation)
-                z_h = sigmoid(np.dot(weight, activation)+bias)
-                activation = z_h
-            a_h = z_h.T
-            """
-            a_h = self.feed_forward(X_in).T
-            a = np.dot(self.weights[-1],a_h)+self.biases[-1]
-            probabilities[i] = sigmoid(a)
+        for bias, weight in zip(self.biases, self.weights):
+
+            z = np.matmul(a,weight.T)+bias
+
+            #Enumerate & softmax
+            a = sigmoid(z)
+        probabilities = a
             #probabilities[i] = a
 
             #print(probabilities[i])
@@ -475,6 +476,7 @@ class NeuralNetwork:
 
 
     def predict(self, X,classify=False):
+        print("W_out",self.biases)
         prob = self.feed_forward_out(X)
         classification = prob
         if classify:
@@ -521,16 +523,22 @@ if __name__ == "__main__":
     y = y[indices]
     print(indices)
     """
+
     X, y = generate_data()
-    print("Shape X",X.shape[1])
+
+
+    print("Shape X",X[0])
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2)
+    sc = StandardScaler()
+    X_train = sc.fit_transform(X_train)
+    X_test = sc.transform(X_test)
 
 
 
-
-    sizes = [30,50,1]
+    sizes = [30,50,30,1]
     etas = np.logspace(-5,  -1, 7)
     lamb = np.logspace(-5, -1, 7)
+    #lamb = np.zeros(1)
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
     grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb)
