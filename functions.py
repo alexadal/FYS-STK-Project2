@@ -28,7 +28,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
             print("Eta",eta_in)
             #NN = NeuralNetwork(X_train,y_train,sizes,epochs=100, batch_size=50,eta=eta_in)
            #Object = class_input(X_train,y_train,epochs=100, batch_s=100,eta_in=eta_in,lamd=lamb)
-            Object = class_input(X_train,y_train,sizes,epochs=50, batch_size=50,eta=eta_in)
+            Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in)
             probabilities = Object.predict(X_test,classify=True)
             print("Probabilities", probabilities)
             #print("Fasit",y)
@@ -409,6 +409,9 @@ class NeuralNetwork:
 
                 self.update_m_batch(batchx, batchy, epoch, eta)
                 k += 1
+                #cost = self.compute_cost(batchx,batchy)
+                #print("Loss",cost)
+
 
 
     def learning_schedule(self, t):
@@ -483,7 +486,17 @@ class NeuralNetwork:
                     classification[i] = 0
                     #print(False)
         return classification
+"""
+    def compute_cost(self,X,y):
 
+        a_out = self.feed_forward(X.T)
+        print("A_out",a_out.shape)
+        print("shape",y.shape)
+        y = y.reshape(-1,1)
+        a_out = a_out.reshape(y.shape)
+        cost = self.cost.cost_f(a_out,y)
+        return cost
+"""
 
 
 """
@@ -515,9 +528,9 @@ if __name__ == "__main__":
 
 
 
-    sizes = [30,10,10,1]
-    etas = np.logspace(-5,  1, 10)
-    lamb = np.logspace(-5, -1, 10)
+    sizes = [30,50,1]
+    etas = np.logspace(-5,  -1, 7)
+    lamb = np.logspace(-5, -1, 7)
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
     grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb)
