@@ -19,7 +19,7 @@ Class test function
 --------------------------------------------------------------------
 """
 
-def grid_search(class_input,sizes,X_test,y_test,etas,lamdbdas):
+def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
     accuracies = np.zeros((len(etas),len(lamdbdas)))
     sns.set()
 
@@ -27,9 +27,10 @@ def grid_search(class_input,sizes,X_test,y_test,etas,lamdbdas):
         for j,lamb in enumerate(lamdbdas):
             print("Eta",eta_in)
             #NN = NeuralNetwork(X_train,y_train,sizes,epochs=100, batch_size=50,eta=eta_in)
-            Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in,lmbd=lamb)
+           #Object = class_input(X_train,y_train,epochs=100, batch_s=100,eta_in=eta_in,lamd=lamb)
+            Object = class_input(X_train,y_train,sizes,epochs=50, batch_size=50,eta=eta_in)
             probabilities = Object.predict(X_test,classify=True)
-            #print("Probabilities", probabilities)
+            print("Probabilities", probabilities)
             #print("Fasit",y)
             accuracies[i][j] = accuracy_score_numpy(probabilities,y_test)
             #print("Accuracy",accuracies[i])
@@ -85,6 +86,8 @@ def sigmoid_der(x):
 
 
 def accuracy_score_numpy(Y_test, Y_pred):
+    Y_pred = Y_pred.reshape(Y_test.shape)
+    print('Shape comparision  {}  {}'.format(Y_test.shape,Y_pred.shape))
     return np.sum(Y_test == Y_pred) / len(Y_test)
 
 
@@ -98,8 +101,9 @@ Classes used
 class logit:
 
 
-    def __init__(self,X,Y):
-        self.weights = self.rnd_betas(len(X[0]))
+    def __init__(self,X,y,epochs=10,batch_s=80,eta_in=0.1,lamd=0,type='Vanilla'):
+        self.weights = self.rnd_betas(len(X[0,:]))
+        self.gd_fit(X,y,type,epochs,batch_s,eta=eta_in)
 
 
     def linreg(self,X,betas):
@@ -113,14 +117,14 @@ class logit:
     # Create cost function based on the number of parameters
     def cost_func(self,X,y,betas):
         #get number of observation to average cost function over
-        n = len(X[0])
+        n = len(X[0,:])
         scores = self.linreg(X,betas)
         Cost = np.sum(y*scores-np.log(1+np.exp(scores)))
         return Cost
 
     #Initiate random betas for grad descent
     def rnd_betas(self, m):
-        beta = 10**-10*np.random.randn(m, 1)
+        beta = np.random.randn(m, 1)
         return beta
 
     #Get the gradient of log function
@@ -130,6 +134,7 @@ class logit:
         #print("P-matrix",self.pi_beta(X, betas).shape)
         scores = self.linreg(X,betas)
         prob = self.pi_beta(scores)
+        #print("prob shape",prob.shape)
         s_p = y.reshape(prob.shape)-prob
 
         grad = -np.dot(X.T,s_p)
@@ -153,10 +158,10 @@ class logit:
     #def st_gd(self,X,y,betas):
 
     #Se nærmere på hvordan X er ift vector
-    def SGD(self,X_train,y_train,epochs,m_batch_size,eta_fixed=True,X_test=None,y_test=None):
+    def SGD(self, X_train, y_train, epochs, m_batch_size, eta=0.1):
         n=0
-        if X_test: n = len(X_test[:])
-        else:n=len(X_train[:])
+
+        n=len(X_train[:])
         for epoch in range(epochs):
             #Pass på axis
             randomize = np.arange(len(X_train[:]))
@@ -169,7 +174,7 @@ class logit:
             k = 0
             for batchx,batchy in zip(mini_batches_x,mini_batches_y):
                 #print("Batch no", k+1)
-                self.update_m_batch(batchx,batchy,eta_fixed,epoch,m_batch_size,k)
+                self.update_m_batch(batchx,batchy,eta,epoch,m_batch_size,k)
                 k+=1
 
 
@@ -179,48 +184,43 @@ class logit:
         return t0 / (t + t1)
 
 
-    def update_m_batch(self,batchx,batchy,eta_fixed,epoch,m,i):
+    def update_m_batch(self,batchx,batchy,eta,epoch,m,i):
         gradients = self.gd(batchx,batchy,self.weights)
-        eta = 0
-        if eta_fixed: eta=0.0001
-        else:eta= self.learning_schedule((epoch*m+i))
+        if eta ==0:eta= self.learning_schedule((epoch*m+i))
         #print("SGD eta",eta)
         self.weights -= eta*gradients
 
 
     #Normal Gradient Desent --> choose learning rate as constant or Newtons method
-    def gd_fit(self,X,y, iter='Vanilla',conv=0.000001):
-        Niterations = 0
+    def gd_fit(self,X,y, iter='Vanilla',epochs=10,batch_s = 50,conv=0.000001,eta =0.1):
         gamma = []
         betas_old = []
         Niterations = 1000
-        eta = 0
         n = len(X[:])
         #betas = self.rnd_betas(n)
         for i in range(Niterations):
             betas_old = self.weights
-            print("eta",eta)
             if iter == 'NR':
                 eta_old = eta
-                eta = self.NR(X, betas_old)
+                eta_NR = self.NR(X, betas_old)
                 #betas-= eta@self.gd(X,y,betas)
-                self.weights -= eta@self.gd(X,y,self.weights)
+                self.weights -= eta_NR@self.gd(X,y,self.weights)
                 #Break loop for convergence
                 if i>0:
                     if np.abs(np.mean(np.mean(eta,axis=1),axis=0)-np.mean(np.mean(eta_old,axis=1),axis=0)) <= conv:
                         break
             elif iter == 'Vanilla':
-                eta = 5*10**(-5)
                 self.weights -= eta*self.gd(X,y,betas_old)
             elif iter == 'SGD':
-                print("Batch_size",n)
-                self.SGD(X,y,100,80,eta_fixed=True)
+                self.SGD(X,y,epochs,batch_s,eta)
                 break
 
         return self.weights
 
     def predict(self, X,classify=False):
-        prob = np.dot(self.weights,X)
+        a = np.dot(X,self.weights)
+        prob = sigmoid(a)
+
         classification = prob
         if classify:
             for i in range(len(prob)):
@@ -509,24 +509,20 @@ if __name__ == "__main__":
     print(indices)
     """
     X, y = generate_data()
-    print("Shape X",X.shape)
+    print("Shape X",X.shape[1])
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2)
 
 
-    logreg = logit(X,y)
-    #print("Beta_vec",betas.shape)
-    print("Betas", logreg.gd_fit(X,y,iter='SGD'))
-    clf = LogisticRegression(fit_intercept=True, C=1e15)
-    clf.fit(X[:,1:], y.ravel())
-    print("SKlearn results",clf.intercept_, clf.coef_)
 
 
-
-    sizes = [30,50,50,1]
-    etas = np.logspace(-5, -1, 20)
-    lamb = np.logspace(-5, -1, 20)
+    sizes = [30,10,10,1]
+    etas = np.logspace(-5,  1, 10)
+    lamb = np.logspace(-5, -1, 10)
     #Run test funtion
-    grid_search(NeuralNetwork,sizes,X_test,y_test,etas,lamb)
+    #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
+    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb)
+
+
     sns.set()
     test_accuracy = np.zeros((len(etas), len(lamb)))
 
