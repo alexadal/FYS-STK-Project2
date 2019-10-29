@@ -12,9 +12,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, accuracy_score, roc_auc_score
 
 # Trying to set the seed
-np.random.seed(209)
+seed = 209
+np.random.seed(seed)
 import random
-random.seed(0)
+random.seed(seed)
 
 # Reading file into data frame
 cwd = os.getcwd()
@@ -199,6 +200,13 @@ df = df.drop(df[(df.PAY_AMT1 > (pay_amt_cutoffs[1,0]+outlier_limit)) |
                 (df.PAY_AMT4 > (pay_amt_cutoffs[1,3]+outlier_limit)) |
                 (df.PAY_AMT5 > (pay_amt_cutoffs[1,4]+outlier_limit)) |
                 (df.PAY_AMT6 > (pay_amt_cutoffs[1,5]+outlier_limit))].index)
+#Dropping instances where pay is -2 as this case is not defined in the dataset
+df = df.drop(df[(df.PAY_0 == -2) |
+                (df.PAY_2 == -2) |
+                (df.PAY_3 == -2) |
+                (df.PAY_4 == -2) |
+                (df.PAY_5 == -2) |
+                (df.PAY_6 == -2)].index)
 '''
 for i in range(1,6):
     col = 'BILL_AMT' + str(i)
@@ -234,6 +242,11 @@ print(data_df.describe())
 # Features and targets
 X = data_df.loc[:, data_df.columns != 'defaultPaymentNextMonth'].values
 y = data_df.loc[:, data_df.columns == 'defaultPaymentNextMonth'].values
+
+#Train and test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=seed,shuffle=True)
+
+
 # Categorical variables to one-hot's
 #onehotencoder = OneHotEncoder(categories="auto")
 #X = ColumnTransformer([("", onehotencoder, [3]),],remainder="passthrough").fit_transform(X)
@@ -252,16 +265,14 @@ logreg = logit(X,y)
     #gamma = logreg.gd_fit(X,y,iter='NR')
     #step = gamma@grad
     #print("Beta_vec",betas.shape)
-'''
+
 #atempting to run logistic regression . . .
-print("Betas", logreg.gd_fit(X,y.ravel(),iter='SGD'))
+print("Betas", logreg.gd_fit(X_train,y_train,iter='SGD'))
 
 
-    #print("Gradient",grad.shape)
-X = data_df.loc[:, data_df.columns != 'defaultPaymentNextMonth'].values
-y = data_df.loc[:, data_df.columns == 'defaultPaymentNextMonth'].values
-clf = LogisticRegression(fit_intercept=True, C=1e15, max_iter=1000,random_state=209)
-clf.fit(X, y.ravel())
+
+clf = LogisticRegression(fit_intercept=False, C=1e15, max_iter=1000,random_state=209)
+clf.fit(X_train, y_train)
 print("SKlearn results",clf.intercept_, clf.coef_)
 
-'''
+
