@@ -30,6 +30,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
             #NN = NeuralNetwork(X_train,y_train,sizes,epochs=100, batch_size=50,eta=eta_in)
            #Object = class_input(X_train,y_train,epochs=100, batch_s=100,eta_in=eta_in,lamd=lamb)
             Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in)
+            #Object.activations()
             probabilities = Object.predict(X_test,classify=True)
             print("Probabilities", probabilities)
             #print("Fasit",y)
@@ -85,6 +86,13 @@ def sigmoid(x):
 def sigmoid_der(x):
     return sigmoid(x) * (1-sigmoid(x))
 
+def softmax(x):
+    exp_term = np.exp(x)
+    return exp_term / np.sum(exp_term, axis=1, keepdims=True)
+
+
+def none(x):
+    return 1
 
 def accuracy_score_numpy(Y_test, Y_pred):
     Y_pred = Y_pred.reshape(Y_test.shape)
@@ -251,7 +259,9 @@ within the Neural Net class
 Note that the scaling is simplified as this does not change the algebraic behaviour to find minima
 
 """
+#Remember to update activation in for additional class here
 class CrossE_Cost:
+
     @staticmethod
     def cost_f(a, y):
         """Use np.nan_to_num to avoid nan of log part if a,y = 1 """
@@ -264,6 +274,7 @@ class CrossE_Cost:
 
 
 class MSE_Cost:
+
     @staticmethod
     def cost_f(a, y):
         return 0.5*(a-y)**2
@@ -304,6 +315,23 @@ class NeuralNetwork:
         self.n_layers = len(sizes)
         self.create_biases_and_weights()
         self.SGD(X,y,epochs,batch_size,eta)
+        self.activations = self.activations_in(cost,sizes)
+
+    def activations_in(self,cost,sizes):
+        activations_l = []
+        if cost == CrossE_Cost:
+            for i in range(len(sizes)):
+                activations_l.append(sigmoid)
+                print("Ok")
+            if sizes[-1] == 1:
+                activations_l.append(sigmoid)
+            else:
+                #softmax
+                activations_l.append(softmax)
+        if cost == MSE_Cost:
+
+
+        return activations_l
 
     def create_biases_and_weights(self,zeros=True):
         #self.weights = np.random.randn(self.n_features, self.n_hidden_neurons)
@@ -461,12 +489,12 @@ class NeuralNetwork:
         a = X
         z_h = []
         probabilities = np.zeros(len(X[:]))
-        for bias, weight in zip(self.biases, self.weights):
+        for bias, weight, activation in zip(self.biases, self.weights,self.activations):
 
             z = np.matmul(a,weight.T)+bias
 
             #Enumerate & softmax
-            a = sigmoid(z)
+            a = activation(z)
         probabilities = a
             #probabilities[i] = a
 
@@ -536,6 +564,7 @@ if __name__ == "__main__":
 
 
     sizes = [30,50,30,1]
+    print(len(sizes))
     etas = np.logspace(-5,  -1, 7)
     lamb = np.logspace(-5, -1, 7)
     #lamb = np.zeros(1)
