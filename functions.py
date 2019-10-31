@@ -31,7 +31,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
            #Object = class_input(X_train,y_train,epochs=100, batch_s=100,eta_in=eta_in,lamd=lamb)
             if class_input == NeuralNetwork:
                 Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in)
-                probabilities = Object.predict(X_test, classify=True)
+                probabilities = Object.predict(X_test,y_test ,classify=True)
                 print("Probabilities", probabilities)
                 accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
                 title = 'Neural Network'
@@ -51,6 +51,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
     #ax.set_ylim(etas[-1],etas[0])
     ax.set_ylabel("$\eta$")
     ax.set_xlabel("$\lambda$")
+    ax.set_yticks(etas)
     plt.ylim((etas[0],etas[-1]))
     plt.title(title)
     plt.show()
@@ -276,7 +277,7 @@ class CrossE_Cost:
     @staticmethod
     def cost_f(a, y):
         """Use np.nan_to_num to avoid nan of log part if a,y = 1 """
-        return -np.sum(np.nan(y*np.log(a)+(1-y)*np.log(1-a)))
+        return -1/len(y)*np.sum(y*np.log(a)+(1-y)*np.log(1-a))
     @staticmethod
         #Y included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid part cancels increasing learning pace
@@ -288,9 +289,9 @@ class MSE_Cost:
 
     @staticmethod
     def cost_f(a, y):
-        return 0.5*(a-y)**2
+        return 0.5/len(y)*(a-y)**2
     @staticmethod
-        #Y included for easy running of Neural Net Code
+        #z included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid
     def delta(z, a, y):
         return(a-y)
@@ -334,7 +335,7 @@ class NeuralNetwork:
         if cost == CrossE_Cost:
             for i in range(len(sizes)):
                 activations_l.append(sigmoid)
-                print("Ok")
+                #print("Ok")
             if sizes[-1] == 1:
                 activations_l.append(sigmoid)
             else:
@@ -471,15 +472,14 @@ class NeuralNetwork:
 
         der_b = [np.zeros(bias.shape) for bias in self.biases]
         der_w = [np.zeros(weight.shape) for weight in self.weights]
-
+        eta = 0
 
         if eta_i == 0:
             eta = self.learning_schedule((epoch * m + i))
         eta = eta_i
 
 
-
-            #Get dCx/dw & dCx/db
+        #Get dCx/dw & dCx/db
 
         der_b,der_w = self.backpropagate(batchx, batchy)
         self.biases = [b-(eta)*db for b,db in zip(self.biases,der_b)]
@@ -494,24 +494,33 @@ class NeuralNetwork:
         a = X
         z_h = []
         probabilities = np.zeros(len(X[:]))
+        loss = 0
         for bias, weight, activation in zip(self.biases, self.weights,self.activations):
 
             z = np.matmul(a,weight.T)+bias
 
             #Enumerate & softmax
             a = activation(z)
+
         probabilities = a
+
+
             #probabilities[i] = a
 
             #print(probabilities[i])
 
-        return probabilities
+        return probabilities,loss
 
 
-    def predict(self, X,classify=False):
-        print("W_out",self.biases)
-        prob = self.feed_forward_out(X)
+
+
+    def predict(self, X,y,classify=False):
+        #print("W_out",self.biases)
+        prob, loss = self.feed_forward_out(X)
         classification = prob
+        print("prob",prob)
+        print("Log", np.sum(y*np.log(1-prob)))
+        loss = self.cost.cost_f(prob, y.reshape(-1, 1))
         if classify:
             for i in range(len(prob)):
                 if prob[i] >= 0.5:
@@ -520,6 +529,9 @@ class NeuralNetwork:
                 else:
                     classification[i] = 0
                     #print(False)
+
+
+        print("Loss",loss)
         return classification
 """
     def compute_cost(self,X,y):
@@ -574,8 +586,26 @@ if __name__ == "__main__":
     lamb = np.logspace(-5, 1, 10)
     #lamb = np.zeros(1)
     #Run test funtion
-    grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
-    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb)
+    #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
+    #grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb)
+
+    Object = NeuralNetwork(X_train, y_train, sizes, epochs=100, batch_size=500, eta=etas[5],lmbd=lamb[4])
+    probabilities = Object.predict(X_test, y_test, classify=True)
+    print(probabilities.shape)
+
+    fig, ax = plt.subplots()
+    ax.hist(y, bins=[0,0.5,0.5,1])
+    ax.set_xticks(np.arange(0, 1, step=0.5))
+    #ax.set_xticklabels(0.5,1)
+
+    plt.show()
+
+
+
+
+
+
+
 
 
 
