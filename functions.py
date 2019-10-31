@@ -23,32 +23,36 @@ Class test function
 def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
     accuracies = np.zeros((len(etas),len(lamdbdas)))
     sns.set()
-
+    title = ''
     for i,eta_in in enumerate(etas):
         for j,lamb in enumerate(lamdbdas):
             print("Eta",eta_in)
             #NN = NeuralNetwork(X_train,y_train,sizes,epochs=100, batch_size=50,eta=eta_in)
            #Object = class_input(X_train,y_train,epochs=100, batch_s=100,eta_in=eta_in,lamd=lamb)
-            Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in)
+            if class_input == NeuralNetwork:
+                Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in)
+                probabilities = Object.predict(X_test, classify=True)
+                print("Probabilities", probabilities)
+                accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
+                title = 'Neural Network'
             #Object.activations()
-            probabilities = Object.predict(X_test,classify=True)
-            print("Probabilities", probabilities)
-            #print("Fasit",y)
-            accuracies[i][j] = accuracy_score_numpy(probabilities,y_test)
-            #print("Accuracy",accuracies[i])
+            elif class_input == logit:
+                Object = class_input(X_train, y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='SGD')
+                probabilities = Object.predict(X_test, classify=True)
+                print("Probabilities", probabilities)
+                accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
+                title = 'Logistic Regression'
 
 
     print("Accuracies",accuracies)
-    fig, ax = plt.subplots(figsize=(20, 20))
+    fig, ax = plt.subplots(figsize=(10, 10))
     sns.heatmap(accuracies, annot=True, ax=ax, cmap="viridis")
     ax.set_title("Accuracy")
     #ax.set_ylim(etas[-1],etas[0])
     ax.set_ylabel("$\eta$")
     ax.set_xlabel("$\lambda$")
-    #plt.xticks(lamdbdas)
-    #plt.yticks(etas)
-    #plt.ylim(etas[0],etas[-1])
-    #ax.xlim(lamdbdas[0],lamdbdas[-1])
+    plt.ylim((etas[0],etas[-1]))
+    plt.title(title)
     plt.show()
 
 
@@ -89,6 +93,10 @@ def sigmoid_der(x):
 def softmax(x):
     exp_term = np.exp(x)
     return exp_term / np.sum(exp_term, axis=1, keepdims=True)
+
+def linear(x):
+    return 4*x
+
 
 
 def none(x):
@@ -201,7 +209,7 @@ class logit:
 
 
     #Normal Gradient Desent --> choose learning rate as constant or Newtons method
-    def gd_fit(self,X,y, iter='Vanilla',epochs=10,batch_s = 50,conv=0.000001,eta =0.1):
+    def gd_fit(self,X,y, iter='Vanilla',epochs=10,batch_s = 50,conv=10**-8,eta =0.1):
         gamma = []
         betas_old = []
         Niterations = 1000
@@ -210,13 +218,16 @@ class logit:
         for i in range(Niterations):
             betas_old = self.weights
             if iter == 'NR':
-                eta_old = eta
                 eta_NR = self.NR(X, betas_old)
+                if i == 0:
+                    eta_old = self.NR(X, betas_old)*0
+                else:
+                    eta_old = eta_NR
                 #betas-= eta@self.gd(X,y,betas)
                 self.weights -= eta_NR@self.gd(X,y,self.weights)
                 #Break loop for convergence
                 if i>0:
-                    if np.abs(np.mean(np.mean(eta,axis=1),axis=0)-np.mean(np.mean(eta_old,axis=1),axis=0)) <= conv:
+                    if np.abs(np.mean(np.mean(eta_NR,axis=1),axis=0)-np.mean(np.mean(eta_old,axis=1),axis=0)) <= conv:
                         break
             elif iter == 'Vanilla':
                 self.weights -= eta*self.gd(X,y,betas_old)
@@ -303,6 +314,7 @@ class NeuralNetwork:
         self.y = y
         self.sizes = sizes
         self.cost = cost
+        self.activations = self.activations_in(cost, sizes)
         #self.n_inputs = X_data.shape[0]
         #self.n_features = X_data.shape[1]
         #self.n_hidden_neurons = n_hidden_neurons
@@ -328,7 +340,7 @@ class NeuralNetwork:
             else:
                 #softmax
                 activations_l.append(softmax)
-        if cost == MSE_Cost:
+        #if cost == MSE_Cost:
 
 
         return activations_l
@@ -372,12 +384,12 @@ class NeuralNetwork:
         zs = []
 
         #Activate all layers
-        for bias, weight in zip(self.biases, self.weights):
+        for bias, weight, act in zip(self.biases, self.weights,self.activations):
             #print("Wt",weight.shape)
             z = np.matmul(activation,weight.T)+bias
             #print("Z",z.shape)
             zs.append(z)
-            activation = sigmoid(z)
+            activation = act(z)
             #print("Activations Back",activation)
             #np.append(activations,activation)
             activations.append(activation)
@@ -464,19 +476,12 @@ class NeuralNetwork:
         if eta_i == 0:
             eta = self.learning_schedule((epoch * m + i))
         eta = eta_i
-        #print("SGD eta", eta)
-        #print("M",m)
-        #self.weights -= eta * gradients
 
-        #print("eta_out",eta)
 
 
             #Get dCx/dw & dCx/db
 
         der_b,der_w = self.backpropagate(batchx, batchy)
-            # Calculate SUM_x(dCx/dw) & SUM_x(dCx/db)
-            #der_b = [db + d_db for db,d_db in zip(der_b,delta_der_b)]
-            #der_w = [dw + d_dw for dw, d_dw in zip(der_w, delta_der_w)]
         self.biases = [b-(eta)*db for b,db in zip(self.biases,der_b)]
         #self.biases = self.biases - (eta / m) * der_b
         self.weights = [(1-(eta*lamd))*w-(eta)*dw for w,dw in zip(self.weights,der_w)]
@@ -563,18 +568,17 @@ if __name__ == "__main__":
 
 
 
-    sizes = [30,50,30,1]
+    sizes = [30,50,50,1]
     print(len(sizes))
-    etas = np.logspace(-5,  -1, 7)
-    lamb = np.logspace(-5, -1, 7)
+    etas = np.logspace(-5,  1, 10)
+    lamb = np.logspace(-5, 1, 10)
     #lamb = np.zeros(1)
     #Run test funtion
-    #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
+    grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
     grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb)
 
 
-    sns.set()
-    test_accuracy = np.zeros((len(etas), len(lamb)))
+
 
 """
 sizes = [2,3,1]
