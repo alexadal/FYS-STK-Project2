@@ -10,8 +10,11 @@ random.seed(209)
 np.random.seed(100)
 from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
-
 from sklearn.linear_model import LogisticRegression
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.regularizers import l2
+from keras.optimizers import SGD
 
 
 """
@@ -22,6 +25,7 @@ Class test function
 
 def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
     accuracies = np.zeros((len(etas),len(lamdbdas)))
+    #loss = np.zeros((len(etas), len(lamdbdas)))
     sns.set()
     title = ''
     for i,eta_in in enumerate(etas):
@@ -30,9 +34,9 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
             #NN = NeuralNetwork(X_train,y_train,sizes,epochs=100, batch_size=50,eta=eta_in)
            #Object = class_input(X_train,y_train,epochs=100, batch_s=100,eta_in=eta_in,lamd=lamb)
             if class_input == NeuralNetwork:
-                Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in)
-                probabilities = Object.predict(X_test,y_test ,classify=True)
-                print("Probabilities", probabilities)
+                Object = class_input(X_train,y_train,sizes,epochs=50, batch_size=50,eta=eta_in)
+                probabilities,loss = Object.predict(X_test,y_test ,classify=True)
+                print("Loss", loss)
                 accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
                 title = 'Neural Network'
             #Object.activations()
@@ -277,7 +281,7 @@ class CrossE_Cost:
     @staticmethod
     def cost_f(a, y):
         """Use np.nan_to_num to avoid nan of log part if a,y = 1 """
-        return -1/len(y)*np.sum(y*np.log(a)+(1-y)*np.log(1-a))
+        return (-1./len(y))*np.sum(y*np.log(a)+(1-y)*np.log(1-a))
     @staticmethod
         #Y included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid part cancels increasing learning pace
@@ -289,7 +293,7 @@ class MSE_Cost:
 
     @staticmethod
     def cost_f(a, y):
-        return 0.5/len(y)*(a-y)**2
+        return (0.5/len(y))*(a-y)**2
     @staticmethod
         #z included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid
@@ -441,6 +445,7 @@ class NeuralNetwork:
 
         for epoch in range(epochs):
             # Pass på axis
+            print("Epoch no: " + "{}".format(epoch))
             randomize = np.arange(len(X[:,0]))
 
             np.random.shuffle(randomize)
@@ -451,14 +456,13 @@ class NeuralNetwork:
             mini_batches_x = [x_rand[m:m + m_batch_size] for m in range(0, n, m_batch_size)]
             mini_batches_y = [y_rand[m:m + m_batch_size] for m in range(0, n, m_batch_size)]
             k = 0
-
             for batchx, batchy in zip(mini_batches_x, mini_batches_y):
-                #print("Batch no", k+1)
-
                 self.update_m_batch(batchx, batchy, epoch, eta)
-                k += 1
-                #cost = self.compute_cost(batchx,batchy)
-                #print("Loss",cost)
+                k = k+1
+                print(k)
+                print("Batch no: " + "{}".format(k))
+                cost = self.cost.cost_f(self.feed_forward_out(batchx),batchy.reshape(-1,1))
+                print("Loss",cost)
 
 
 
@@ -470,8 +474,8 @@ class NeuralNetwork:
     def update_m_batch(self, batchx, batchy, epoch, eta_i, m=100, i=1,lamd=0):
         #gradients = self.gd(batchx, batchy, self.weights)
 
-        der_b = [np.zeros(bias.shape) for bias in self.biases]
-        der_w = [np.zeros(weight.shape) for weight in self.weights]
+        #der_b = [np.zeros(bias.shape) for bias in self.biases]
+        #der_w = [np.zeros(weight.shape) for weight in self.weights]
         eta = 0
 
         if eta_i == 0:
@@ -509,14 +513,14 @@ class NeuralNetwork:
 
             #print(probabilities[i])
 
-        return probabilities,loss
+        return probabilities
 
 
 
 
     def predict(self, X,y,classify=False):
         #print("W_out",self.biases)
-        prob, loss = self.feed_forward_out(X)
+        prob = self.feed_forward_out(X)
         classification = prob
         print("prob",prob)
         print("Log", np.sum(y*np.log(1-prob)))
@@ -532,7 +536,7 @@ class NeuralNetwork:
 
 
         print("Loss",loss)
-        return classification
+        return classification, loss
 """
     def compute_cost(self,X,y):
 
@@ -573,14 +577,20 @@ if __name__ == "__main__":
 
 
     print("Shape X",X[0])
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2)
+    X_t, X_test, y_t, y_test = train_test_split(X, y, test_size = 0.2)
     sc = StandardScaler()
-    X_train = sc.fit_transform(X_train)
+    X_t = sc.fit_transform(X_t)
     X_test = sc.transform(X_test)
 
+    X_train, X_valid, y_train, y_valid = train_test_split(X_t, y_t, test_size = 0.1)
 
 
-    sizes = [30,50,50,1]
+
+
+
+
+
+    sizes = [30,35,35,1]
     print(len(sizes))
     etas = np.logspace(-5,  1, 10)
     lamb = np.logspace(-5, 1, 10)
@@ -589,38 +599,81 @@ if __name__ == "__main__":
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
     #grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb)
 
-    Object = NeuralNetwork(X_train, y_train, sizes, epochs=100, batch_size=500, eta=etas[5],lmbd=lamb[4])
-    probabilities = Object.predict(X_test, y_test, classify=True)
-    print(probabilities.shape)
-
-    fig, ax = plt.subplots()
-    ax.hist(y, bins=[0,0.5,0.5,1])
-    ax.set_xticks(np.arange(0, 1, step=0.5))
-    #ax.set_xticklabels(0.5,1)
-
-    plt.show()
 
 
 
+    def check_hist(class_input,X_train,y_train,X_test,y_test,sizes,eta,lamdbda):
+
+            Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=etas[5],lmbd=lamb[4])
+            probabilities,loss = Object.predict(X_test, y_test, classify=True)
+            print(probabilities.shape)
+            fig, ax = plt.subplots()
+            counts, bins, patches = ax.hist(probabilities, 2,facecolor='deepskyblue', edgecolor='gray')
+            ax.set_xticks(bins.round(0))
+            ax.set_xticklabels(bins, rotation=0, rotation_mode="anchor", ha="right")
+            plt.show()
+            return 0
+
+    #check_hist(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas[5], lamb[3])
+
+    size = [30,2 ,1]
+    size.insert(-1,5)
+    print(size[1:-1])
+    print(size[2])
+
+    sizes = [30, 1, 1]
+
+    def validation_test(class_input,X_train,y_train,X_valid,y_valid,sizes,etas,lamdbdas):
+        sizes = [30,1,1]
+
+        #list = np.zeros((6*51*len(sizes)))
+
+        #loss = [[[0] for j in range(3)] for i in range(np.sum(range(5)*range(10)*(len(sizes)-2)))]
+        loss = []
+        k = 0
+        print("loss.shape",loss)
+        for i in range (1,5):
+            for j in range (1,50):
+                for h in range(1,len(sizes)-1):
+                    print(h)
+                    sizes[h] = j
+                    print("Sizes",sizes)
+
+                Object = class_input(X_train, y_train, sizes, epochs=50, batch_size=50, eta=etas[5],lmbd=lamdbdas[4])
+                prob,l = Object.predict(X_valid, y_valid, classify=True)
+                loss.append([l,i,j])
+
+            sizes.insert(-1,1)
+        min_loss = np.amin(loss)
+        index = find(loss, min_loss)
+        print("minimum loss is {} for {} Layers and {} Neurons".format(loss[index[0][0]][0],loss[index[0][0]][1], loss[index[0][0]][2]))
+        return loss
 
 
+    def find(searchList, elem):
+        index = []
+        indElem = elem
+        resultList = []
+        for ind in range(0, len(searchList)):
+            if searchList[ind][0] == elem:
+                resultList.append(ind)
+        index.extend([resultList])
+        return index
 
 
+    #losses = validation_test(NeuralNetwork, X_train, y_train, X_valid, y_valid, sizes, etas, lamb)
+    losses = validation_test(NeuralNetwork, X_train, y_train, X_train, y_train, sizes, etas, lamb)
+
+    #min_loss = np.amin(losses)
+    #print(min_loss)
+
+    """
+    index = find(losses,min_loss)
+    print("Index",index[0][0])
+    #index = [index for index, value in enumerate(losses[1]) if value == min_loss]
+    print("minimum loss for " + "{} Layers and {} Neurons".format(losses[index[0][0]][1],losses[index[0][0]][2]))
+    print(losses)
+    """
 
 
-
-
-"""
-sizes = [2,3,1]
-
-
-weights = []
-#X = number of neurons prev layer
-#Y = number of neurons new layer
-for x, y in zip(sizes[:-1], sizes[1:]):
-    print("XY",y,x)
-    weights = np.random.randn(y,x)
-    print(weights)
-
-"""
 
