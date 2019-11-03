@@ -64,17 +64,19 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
     print("Accuracies",accuracies)
     z_max = np.amax(y_train)
     prob_max = np.amax(prob)
+    min_run = np.amin(accuracies)
     print("Probabilities_max",prob_max)
     print("Y_train", z_max)
+    print("Minimum MSE", min_run)
     fig, ax = plt.subplots(figsize=(10, 10))
-    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap, vmax=0.8)
+    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap, vmax = 0.15)
     ax.set_title("Accuracy")
     #ax.set_ylim(etas[-1],etas[0])
     ax.set_ylabel("$\eta$")
     ax.set_xlabel("$\lambda$")
     #ax.set_yticks(etas)
-    #ax.set_yticklabels(etas)
-    plt.ylim((etas[0],etas[-1]))
+    ax.set_yticklabels(etas)
+    plt.ylim((etas[0],len(etas)))
     plt.title(title)
     plt.show()
 
@@ -230,7 +232,7 @@ def linear(x):
     return x
 
 def linear_der(x):
-    return 1
+    return np.ones(x.shape)
 
 def ReLU(x):
     for i in range(0, len(x)):
@@ -486,7 +488,7 @@ class NeuralNetwork:
     def activations_in(self,cost,sizes):
         activations_l = []
         if cost == CrossE_Cost:
-            for i in range(len(sizes)):
+            for i in range(len(sizes)-1):
                 activations_l.append(sigmoid)
                 #print("Ok")
             if sizes[-1] == 1:
@@ -495,12 +497,10 @@ class NeuralNetwork:
                 #softmax
                 activations_l.append(softmax)
         elif cost == MSE_Cost:
-            for i in range(len(sizes)):
-                activations_l.append(sigmoid)
-                #print("MSE")
-            if sizes[-1] == 1:
+            for i in range(len(sizes)-1):
                 activations_l.append(linear)
-                print("Append linear")
+            activations_l[-1] = ReLU
+            print(activations_l)
 
 
         return activations_l
@@ -543,11 +543,10 @@ class NeuralNetwork:
         activations = [X]
         zs = []
 
-        #Activate all layers
-        for bias, weight, act in zip(self.biases, self.weights,self.activations):
+        #feed-forward
+        for act,bias, weight in zip(self.activations,self.biases, self.weights):
             #print("Wt",weight.shape)
-            if act == linear:
-                print("-------------------------------------------------------------- Linear Der -------------------------------------------------------")
+
             z = np.matmul(activation,weight.T)+bias
             #print("Z",z.shape)
             zs.append(z)
@@ -567,8 +566,7 @@ class NeuralNetwork:
         Reach end of array with [-1]
         
         """
-        #print("Acti",activations[-1].shape)
-        #print("Y",y.shape)
+
 
         delta = self.cost.delta(zs[-1],activations[-1],y.reshape(-1,1))
 
@@ -581,13 +579,16 @@ class NeuralNetwork:
             #print("Z",z.shape)
             #sig_der = sigmoid_der(z)
             act_der = sigmoid_der(z)
-            if self.activations[l] == ReLU:
-                act_der = reluDerivative(z)
 
-            elif self.activations[l] == linear:
+            if self.activations[-l] == ReLU:
+                act_der = reluDerivative(z)
+                print("-------------------------------------------------------------- Der ReLU -------------------------------------------------------")
+
+
+            elif self.activations[-l] == linear:
                 act_der = linear_der(z)
-                print("-------------------------------------------------------------- Linear Der -------------------------------------------------------")
-            #print("Z-der", sigmoid_der(z).shape)
+                print("-------------------------------------------------------------- Der Linear -------------------------------------------------------")
+
             #For layer h
             #delta_h = dC/d_ah X da_h/dz_h
             # 1. dC/da_h = delta_(h+1)*w_h+1
@@ -670,8 +671,8 @@ class NeuralNetwork:
             if activation == linear:
                 print("-------------------------------------------------------------- Linear -------------------------------------------------------")
 
+            probabilities = a
 
-        probabilities = a
 
 
             #probabilities[i] = a
@@ -746,9 +747,11 @@ if __name__ == "__main__":
 
     sizes = [3,3,2,1]
     print(len(sizes))
-    etas = np.logspace(-5,  1, 10)
+    etas = np.logspace(-5,  1, 7)
     #etas = np.logspace(1,  1, 10)
-    lamb = np.logspace(-5, 1, 10)
+    lamb = np.logspace(-5, 1, 7)
+    #etas = etas[:4]
+    print("etas",etas)
     #lamb = np.zeros(1)
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
