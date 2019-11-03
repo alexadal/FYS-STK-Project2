@@ -2,17 +2,17 @@ import pandas as pd
 import numpy as np
 from sklearn import datasets
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import PolynomialFeatures
 import random
 import seaborn as sns
 import sys
 import matplotlib.pyplot as plt
-random.seed(209)
-np.random.seed(100)
+from imageio import imread
 from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
-from sklearn.linear_model import LogisticRegression
-
+random.seed(209)
+np.random.seed(100)
 
 """
 --------------------------------------------------------------------
@@ -20,41 +20,127 @@ Class test function
 --------------------------------------------------------------------
 """
 
-def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas):
+def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MSE=False):
     accuracies = np.zeros((len(etas),len(lamdbdas)))
+    #loss = np.zeros((len(etas), len(lamdbdas)))
     sns.set()
     title = ''
+    cmap = ''
+    prob =[]
     for i,eta_in in enumerate(etas):
         for j,lamb in enumerate(lamdbdas):
             print("Eta",eta_in)
             #NN = NeuralNetwork(X_train,y_train,sizes,epochs=100, batch_size=50,eta=eta_in)
            #Object = class_input(X_train,y_train,epochs=100, batch_s=100,eta_in=eta_in,lamd=lamb)
             if class_input == NeuralNetwork:
-                Object = class_input(X_train,y_train,sizes,epochs=100, batch_size=100,eta=eta_in)
-                probabilities = Object.predict(X_test,y_test ,classify=True)
-                print("Probabilities", probabilities)
-                accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
-                title = 'Neural Network'
+                if MSE:
+                    print("MSE = true")
+                    Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=eta_in, cost=MSE_Cost)
+                    #probabilities, loss = Object.predict(X_test, y_test, classify=False)
+                    probabilities, loss = Object.predict(X_test, FrankeFunc(X_test[:,1],X_test[:,2]), classify=False)
+                    print("Loss", loss)
+                    accuracies[i][j] = loss
+                    prob.append(probabilities)
+                    title = 'MSE Neural Network - Franke function'
+                    cmap = 'viridis_r'
+                else:
+                    Object = class_input(X_train, y_train, sizes, epochs=50, batch_size=50, eta=eta_in)
+                    probabilities, loss = Object.predict(X_test, y_test, classify=True)
+                    print("Loss", loss)
+                    accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
+                    title = 'Accuracy Neural Network'
+                    cmap = 'viridis'
+
+
             #Object.activations()
             elif class_input == logit:
                 Object = class_input(X_train, y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='SGD')
                 probabilities = Object.predict(X_test, classify=True)
                 print("Probabilities", probabilities)
                 accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
-                title = 'Logistic Regression'
-
+                title = 'Accuracy Logistic Regression'
+                cmap = 'viridis'
 
     print("Accuracies",accuracies)
+    z_max = np.amax(y_train)
+    prob_max = np.amax(prob)
+    print("Probabilities_max",prob_max)
+    print("Y_train", z_max)
     fig, ax = plt.subplots(figsize=(10, 10))
-    sns.heatmap(accuracies, annot=True, ax=ax, cmap="viridis")
+    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap, vmax=0.8)
     ax.set_title("Accuracy")
     #ax.set_ylim(etas[-1],etas[0])
     ax.set_ylabel("$\eta$")
     ax.set_xlabel("$\lambda$")
-    ax.set_yticks(etas)
+    #ax.set_yticks(etas)
+    #ax.set_yticklabels(etas)
     plt.ylim((etas[0],etas[-1]))
     plt.title(title)
     plt.show()
+
+
+
+def validation_test(class_input,X_train,y_train,X_valid,y_valid,sizes,etas,lamdbdas):
+    sizes = [30,1,1]
+    loss = []
+
+    #Max 4 hidden layers with 10 Neurons test
+    for i in range (1,5):
+        for j in range (1,51):
+            for h in range(1,len(sizes)-1):
+                print(h)
+                sizes[h] = j
+                print("Sizes",sizes)
+
+            Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=50, eta=etas[6],lmbd=lamdbdas[4])
+            prob,l = Object.predict(X_valid, y_valid, classify=True)
+            if ~np.isnan(l):
+                loss.append([l,i,j])
+
+        sizes.insert(-1,1)
+    print("Loss Matrix ", loss)
+    min_loss = np.amin(loss)
+    index = find(loss,min_loss)
+    print("Index",index)
+    print("Minimum loss is {} for {} hidden layers and {} Neurons".format(loss[index[0][0]][0],loss[index[0][0]][1], loss[index[0][0]][2]))
+    return loss
+
+
+
+
+
+
+
+def check_hist(class_input,X_train,y_train,X_test,y_test,sizes,eta,lamdbda):
+
+        Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=etas[5],lmbd=lamb[4])
+        probabilities,loss = Object.predict(X_test, y_test, classify=True)
+        print(probabilities.shape)
+        fig, ax = plt.subplots()
+        counts, bins, patches = ax.hist(probabilities, 2,facecolor='deepskyblue', edgecolor='gray')
+        ax.set_xticks(bins.round(0))
+        ax.set_xticklabels(bins, rotation=0, rotation_mode="anchor", ha="right")
+        plt.show()
+        return 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 """
@@ -77,6 +163,51 @@ def load_data(path, header):
     return marks_df
 
 
+def load_regdata():
+    terrain = imread("SRTM_data_Norway_25.tif")
+    n = len(terrain[0])
+    m = len(terrain[:,1])
+    x = np.linspace(0,50*m,m)
+    y = np.linspace(0,50*n,n)
+    X,Y = np.meshgrid(x,y)
+
+    z = terrain.ravel()
+    x = X.ravel()
+    y = Y.ravel()
+
+    x_deg = np.c_[x, y]
+    poly = PolynomialFeatures(degree=1)
+    X_ = poly.fit_transform(x_deg)
+    print("Regdata",X_)
+    return X_,z
+
+def gen_frake(N,sigma):
+    N = N
+    x = np.arange(0, 1, 1 / N)
+    y = np.arange(0, 1, 1 / N)
+    X, Y = np.meshgrid(x, y)
+    X = X.ravel()
+    Y = Y.ravel()
+    z = FrankeFunc(X, Y)
+    error = np.random.normal(0, sigma, size=z.shape)
+    z = z + error
+    z.ravel()
+    x_deg = np.c_[X, Y]
+    poly = PolynomialFeatures(degree=1)
+    X_ = poly.fit_transform(x_deg)
+    print("Franke", X_.shape)
+    return X_, z
+
+
+def FrankeFunc(x, y):
+
+    term1 = 0.75 * np.exp(-(0.25 * (9 * x - 2) ** 2) - 0.25 * ((9 * y - 2) ** 2))
+    term2 = 0.75 * np.exp(-((9 * x + 1) ** 2) / 49.0 - 0.1 * (9 * y + 1))
+    term3 = 0.5 * np.exp(-(9 * x - 7) ** 2 / 4.0 - 0.25 * ((9 * y - 3) ** 2))
+    term4 = -0.2 * np.exp(-(9 * x - 4) ** 2 - (9 * y - 7) ** 2)
+    return term1 + term2 + term3 + term4
+
+
 
 """ 
 --------------------------------------------------------------------
@@ -96,16 +227,40 @@ def softmax(x):
     return exp_term / np.sum(exp_term, axis=1, keepdims=True)
 
 def linear(x):
-    return 4*x
+    return x
 
-
-
-def none(x):
+def linear_der(x):
     return 1
+
+def ReLU(x):
+    for i in range(0, len(x)):
+        for k in range(0, len(x[i])):
+            if x[i][k] > 0:
+                pass
+            else:
+                x[i][k] = 0
+    return x
+
+
+def reluDerivative(x):
+    x[x<=0] = 0
+    x[x>0] = 1
+    return x
+
+
+def find(searchList, elem):
+    index = []
+    indElem = elem
+    resultList = []
+    for ind in range(0, len(searchList)):
+        if searchList[ind][0] == elem:
+            resultList.append(ind)
+    index.extend([resultList])
+    return index
 
 def accuracy_score_numpy(Y_test, Y_pred):
     Y_pred = Y_pred.reshape(Y_test.shape)
-    print('Shape comparision  {}  {}'.format(Y_test.shape,Y_pred.shape))
+    #print('Shape comparision  {}  {}'.format(Y_test.shape,Y_pred.shape))
     return np.sum(Y_test == Y_pred) / len(Y_test)
 
 
@@ -254,11 +409,6 @@ class logit:
         return classification
 
 
-    #Need to create predict
-    #def fit(self,X_train,y_train):
-
-
-
 """
 Create different cost-function classes
 That when called within another object, gives inheritance to the attributes
@@ -277,7 +427,7 @@ class CrossE_Cost:
     @staticmethod
     def cost_f(a, y):
         """Use np.nan_to_num to avoid nan of log part if a,y = 1 """
-        return -1/len(y)*np.sum(y*np.log(a)+(1-y)*np.log(1-a))
+        return (-1./len(y))*np.sum(y*np.log(a)+(1-y)*np.log(1-a))
     @staticmethod
         #Y included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid part cancels increasing learning pace
@@ -289,11 +439,13 @@ class MSE_Cost:
 
     @staticmethod
     def cost_f(a, y):
-        return 0.5/len(y)*(a-y)**2
+        #print("MSE cost used")
+        return (0.5/len(y))*np.sum((a-y)**2)
     @staticmethod
         #z included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid
     def delta(z, a, y):
+        #print("MSE loss used")
         return(a-y)
 
 
@@ -329,6 +481,7 @@ class NeuralNetwork:
         self.create_biases_and_weights()
         self.SGD(X,y,epochs,batch_size,eta)
         self.activations = self.activations_in(cost,sizes)
+        #print("last activation",self.activations[-1])
 
     def activations_in(self,cost,sizes):
         activations_l = []
@@ -341,7 +494,13 @@ class NeuralNetwork:
             else:
                 #softmax
                 activations_l.append(softmax)
-        #if cost == MSE_Cost:
+        elif cost == MSE_Cost:
+            for i in range(len(sizes)):
+                activations_l.append(sigmoid)
+                #print("MSE")
+            if sizes[-1] == 1:
+                activations_l.append(linear)
+                print("Append linear")
 
 
         return activations_l
@@ -387,6 +546,8 @@ class NeuralNetwork:
         #Activate all layers
         for bias, weight, act in zip(self.biases, self.weights,self.activations):
             #print("Wt",weight.shape)
+            if act == linear:
+                print("-------------------------------------------------------------- Linear Der -------------------------------------------------------")
             z = np.matmul(activation,weight.T)+bias
             #print("Z",z.shape)
             zs.append(z)
@@ -418,14 +579,20 @@ class NeuralNetwork:
         for l in range(2,self.n_layers):
             z = zs[-l]
             #print("Z",z.shape)
-            sig_der = sigmoid_der(z)
+            #sig_der = sigmoid_der(z)
+            act_der = sigmoid_der(z)
+            if self.activations[l] == ReLU:
+                act_der = reluDerivative(z)
+
+            elif self.activations[l] == linear:
+                act_der = linear_der(z)
+                print("-------------------------------------------------------------- Linear Der -------------------------------------------------------")
             #print("Z-der", sigmoid_der(z).shape)
             #For layer h
             #delta_h = dC/d_ah X da_h/dz_h
             # 1. dC/da_h = delta_(h+1)*w_h+1
             # 2. da_h/dz_h = sigma'(z_h)
-
-            delta = np.matmul(delta,self.weights[-l+1])*sig_der
+            delta = np.matmul(delta,self.weights[-l+1])*act_der
             #print("Activations",activations[-l-1].T)
             #print("Weights",self.weights[-l+1].T.shape)
             #print("Activations",activations[0])
@@ -441,6 +608,7 @@ class NeuralNetwork:
 
         for epoch in range(epochs):
             # Pass på axis
+            print("Epoch no: " + "{}".format(epoch))
             randomize = np.arange(len(X[:,0]))
 
             np.random.shuffle(randomize)
@@ -451,14 +619,12 @@ class NeuralNetwork:
             mini_batches_x = [x_rand[m:m + m_batch_size] for m in range(0, n, m_batch_size)]
             mini_batches_y = [y_rand[m:m + m_batch_size] for m in range(0, n, m_batch_size)]
             k = 0
-
             for batchx, batchy in zip(mini_batches_x, mini_batches_y):
-                #print("Batch no", k+1)
-
                 self.update_m_batch(batchx, batchy, epoch, eta)
-                k += 1
-                #cost = self.compute_cost(batchx,batchy)
-                #print("Loss",cost)
+                k = k+1
+                print("Batch no: " + "{}".format(k))
+                cost = self.cost.cost_f(self.feed_forward_out(batchx),batchy.reshape(-1,1))
+                print("Loss",cost)
 
 
 
@@ -470,8 +636,8 @@ class NeuralNetwork:
     def update_m_batch(self, batchx, batchy, epoch, eta_i, m=100, i=1,lamd=0):
         #gradients = self.gd(batchx, batchy, self.weights)
 
-        der_b = [np.zeros(bias.shape) for bias in self.biases]
-        der_w = [np.zeros(weight.shape) for weight in self.weights]
+        #der_b = [np.zeros(bias.shape) for bias in self.biases]
+        #der_w = [np.zeros(weight.shape) for weight in self.weights]
         eta = 0
 
         if eta_i == 0:
@@ -501,6 +667,9 @@ class NeuralNetwork:
 
             #Enumerate & softmax
             a = activation(z)
+            if activation == linear:
+                print("-------------------------------------------------------------- Linear -------------------------------------------------------")
+
 
         probabilities = a
 
@@ -509,17 +678,16 @@ class NeuralNetwork:
 
             #print(probabilities[i])
 
-        return probabilities,loss
+        return probabilities
 
 
 
 
     def predict(self, X,y,classify=False):
         #print("W_out",self.biases)
-        prob, loss = self.feed_forward_out(X)
+        prob = self.feed_forward_out(X)
         classification = prob
-        print("prob",prob)
-        print("Log", np.sum(y*np.log(1-prob)))
+        print("Probabilities",prob)
         loss = self.cost.cost_f(prob, y.reshape(-1, 1))
         if classify:
             for i in range(len(prob)):
@@ -532,7 +700,7 @@ class NeuralNetwork:
 
 
         print("Loss",loss)
-        return classification
+        return classification, loss
 """
     def compute_cost(self,X,y):
 
@@ -556,71 +724,55 @@ Init tester
 #Create unit test for functions file
 if __name__ == "__main__":
 
+    #X, y = generate_data()
+    #X,y = load_regdata()
+    X,y = gen_frake(50,1)
+
+    print("Shape X",X.shape)
+    X_t, X_test, y_t, y_test = train_test_split(X, y, test_size = 0.2,shuffle=True)
+    X_train, X_valid, y_train, y_valid = train_test_split(X_t, y_t, test_size = 0.2,shuffle=True)
+
+    print("Franke",FrankeFunc(X_test[:,1],X_test[:,2]).shape)
+    print(X_test.shape)
     """
-    num_observations = 1000
-    x1 = np.random.multivariate_normal([0, 0], [[1, .75],[.75, 1]], num_observations)
-    x2 = np.random.multivariate_normal([1, 4], [[1, .75],[.75, 1]], num_observations)
-    X = np.vstack((x1, x2)).astype(np.float32)
-    y = np.hstack((np.zeros(num_observations),np.ones(num_observations)))
-    X = np.hstack((np.ones((X.shape[0], 1)), X))
-    indices = np.arange(0,len(y))
-    np.random.shuffle(indices)
-    y = y[indices]
-    print(indices)
-    """
-
-    X, y = generate_data()
-
-
-    print("Shape X",X[0])
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2)
     sc = StandardScaler()
     X_train = sc.fit_transform(X_train)
+    X_valid = sc.transform(X_valid)
     X_test = sc.transform(X_test)
 
+    y_test = sc.fit_transform(y_test.reshape(-1,1))
+    y_train = sc.fit_transform(y_train.reshape(-1,1))
+    """
 
-
-    sizes = [30,50,50,1]
+    sizes = [3,3,2,1]
     print(len(sizes))
     etas = np.logspace(-5,  1, 10)
+    #etas = np.logspace(1,  1, 10)
     lamb = np.logspace(-5, 1, 10)
     #lamb = np.zeros(1)
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
-    #grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb)
+    #grid_search(NeuralNetwork,X_train,y_train,X_train,y_train,sizes,etas,lamb)
+    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=True)
 
-    Object = NeuralNetwork(X_train, y_train, sizes, epochs=100, batch_size=500, eta=etas[5],lmbd=lamb[4])
-    probabilities = Object.predict(X_test, y_test, classify=True)
-    print(probabilities.shape)
+    #check_hist(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas[5], lamb[3])
 
-    fig, ax = plt.subplots()
-    ax.hist(y, bins=[0,0.5,0.5,1])
-    ax.set_xticks(np.arange(0, 1, step=0.5))
-    #ax.set_xticklabels(0.5,1)
+    #losses = validation_test(NeuralNetwork, X_train, y_train, X_valid, y_valid, sizes, etas, lamb)
+    #losses = validation_test(NeuralNetwork, X_train, y_train, X_train, y_train, sizes, etas, lamb)
+    #losses = validation_test(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas, lamb)
 
-    plt.show()
+    #min_loss = np.amin(losses)
+    #print(min_loss)
 
+    """                             
+    
+    Valid - Minimum loss is 4.5780359721437545e-05 for 4 hidden layers and 40 Neurons
 
-
-
-
-
-
-
-
-
-
-"""
-sizes = [2,3,1]
+    
+    Train - Minimum loss is 0.00014233529772095604 for 4 hidden layers and 30 Neurons
+    
+    
+    """
 
 
-weights = []
-#X = number of neurons prev layer
-#Y = number of neurons new layer
-for x, y in zip(sizes[:-1], sizes[1:]):
-    print("XY",y,x)
-    weights = np.random.randn(y,x)
-    print(weights)
-
-"""
 
