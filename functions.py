@@ -10,11 +10,14 @@ import matplotlib.pyplot as plt
 from imageio import imread
 from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.regularizers import l2
-from keras.optimizers import SGD
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.optimizers import SGD
 from keras.utils import to_categorical
+from tensorflow.python.framework import ops
+ops.reset_default_graph()
 random.seed(209)
 np.random.seed(100)
 
@@ -712,9 +715,9 @@ class k_NN():
             y,
             sizes,
             cost=CrossE_Cost,
-            epochs=10,
+            epochs=100,
             batch_size=100,
-            eta=0.1,
+            eta=0,
             lmbd=0.000):
         self.X = X
         self.y = y
@@ -737,18 +740,21 @@ class k_NN():
 
 
     def create_neural_network_keras(self, eta,lmbd):
-        for neurons in self.sizes[:-1]:
+        model = Sequential()
+        model.add(Dense(self.sizes[1],input_dim=self.sizes[0],activation='sigmoid', kernel_regularizer=l2(lmbd)))
+        for neurons in self.sizes[2:-1]:
             print("Neurons",neurons)
-            model = Sequential()
             model.add(Dense(neurons, activation='sigmoid', kernel_regularizer=l2(lmbd)))
         model.add(Dense(1, activation='sigmoid'))
         sgd = SGD(lr=eta)
-        model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
-
+        model.compile(optimizer=sgd,
+                      loss='binary_crossentropy',
+                      metrics=['accuracy'])
+        #print(model.summary())
         return model
 
     def predict(self, X,y,classify=False):
-        scores = self.Object.evaluate(X, y)[1]
+        scores = self.Object.evaluate(X, y)
         return scores
 
 
@@ -783,17 +789,16 @@ if __name__ == "__main__":
 
     print("Franke",FrankeFunc(X_test[:,1],X_test[:,2]).shape)
     print(X_test.shape)
-    """
+
     sc = StandardScaler()
     X_train = sc.fit_transform(X_train)
     X_valid = sc.transform(X_valid)
     X_test = sc.transform(X_test)
 
-    y_test = sc.fit_transform(y_test.reshape(-1,1))
-    y_train = sc.fit_transform(y_train.reshape(-1,1))
-    """
 
-    sizes = [30,50,50,1]
+
+
+    sizes = [30,20,20,1]
     print(len(sizes))
     etas = np.logspace(-5,  1, 7)
     #etas = np.logspace(1,  1, 10)
