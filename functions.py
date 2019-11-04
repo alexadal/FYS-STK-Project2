@@ -10,7 +10,11 @@ import matplotlib.pyplot as plt
 from imageio import imread
 from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
-
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.regularizers import l2
+from keras.optimizers import SGD
+from keras.utils import to_categorical
 random.seed(209)
 np.random.seed(100)
 
@@ -682,8 +686,6 @@ class NeuralNetwork:
         return probabilities
 
 
-
-
     def predict(self, X,y,classify=False):
         #print("W_out",self.biases)
         prob = self.feed_forward_out(X)
@@ -702,17 +704,62 @@ class NeuralNetwork:
 
         print("Loss",loss)
         return classification, loss
-"""
-    def compute_cost(self,X,y):
 
-        a_out = self.feed_forward(X.T)
-        print("A_out",a_out.shape)
-        print("shape",y.shape)
-        y = y.reshape(-1,1)
-        a_out = a_out.reshape(y.shape)
-        cost = self.cost.cost_f(a_out,y)
-        return cost
-"""
+class k_NN():
+    def __init__(
+            self,
+            X,
+            y,
+            sizes,
+            cost=CrossE_Cost,
+            epochs=10,
+            batch_size=100,
+            eta=0.1,
+            lmbd=0.000):
+        self.X = X
+        self.y = y
+        self.sizes = sizes
+        #self.cost = cost
+        #self.activations = self.activations_in(cost, sizes)
+        #self.n_inputs = X_data.shape[0]
+        #self.n_features = X_data.shape[1]
+        #self.n_hidden_neurons = n_hidden_neurons
+        #self.n_categories = n_categories
+        self.epochs = epochs
+        self.batch_size = batch_size
+        #self.iterations = self.n_inputs // self.batch_size
+        #self.eta = eta
+        self.lmbd = lmbd
+        self.n_layers = len(sizes)
+        self.Object = self.create_neural_network_keras(eta,lmbd)
+        self.Object.fit(self.X, self.y, epochs=epochs, batch_size=batch_size, verbose=0)
+        #scores = DNN.evaluate(X_test, Y_test)
+
+
+    def create_neural_network_keras(self, eta,lmbd):
+        for neurons in self.sizes[:-1]:
+            print("Neurons",neurons)
+            model = Sequential()
+            model.add(Dense(neurons, activation='sigmoid', kernel_regularizer=l2(lmbd)))
+        model.add(Dense(1, activation='sigmoid'))
+        sgd = SGD(lr=eta)
+        model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
+
+        return model
+
+    def predict(self, X,y,classify=False):
+        scores = self.Object.evaluate(X, y)[1]
+        return scores
+
+
+
+
+
+
+
+
+
+
 
 
 """
@@ -725,11 +772,12 @@ Init tester
 #Create unit test for functions file
 if __name__ == "__main__":
 
-    #X, y = generate_data()
+    X, y = generate_data()
     #X,y = load_regdata()
-    X,y = gen_frake(50,1)
+    #X,y = gen_frake(50,1)
 
     print("Shape X",X.shape)
+    #y = to_categorical(y)
     X_t, X_test, y_t, y_test = train_test_split(X, y, test_size = 0.2,shuffle=True)
     X_train, X_valid, y_train, y_valid = train_test_split(X_t, y_t, test_size = 0.2,shuffle=True)
 
@@ -745,7 +793,7 @@ if __name__ == "__main__":
     y_train = sc.fit_transform(y_train.reshape(-1,1))
     """
 
-    sizes = [3,3,2,1]
+    sizes = [30,50,50,1]
     print(len(sizes))
     etas = np.logspace(-5,  1, 7)
     #etas = np.logspace(1,  1, 10)
@@ -756,7 +804,49 @@ if __name__ == "__main__":
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
     #grid_search(NeuralNetwork,X_train,y_train,X_train,y_train,sizes,etas,lamb)
-    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=True)
+    #grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=True)
+    k_Object = k_NN(X_train,y_train,sizes)
+    DNN_k = np.zeros((len(etas), len(lamb)), dtype=object)
+
+    for i, eta in enumerate(etas):
+        for j, lmbd in enumerate(lamb):
+            DNN = k_NN(X_train,y_train,sizes,eta=eta,lmbd=lmbd)
+            scores = DNN.predict(X_test, y_test)
+
+            DNN_k[i][j] = DNN
+
+            print("Learning rate = ", eta)
+            print("Lambda = ", lmbd)
+            print("Test accuracy: %.3f" % scores[1])
+            print()
+
+    sns.set()
+
+    train_accuracy = np.zeros((len(etas), len(lamb)))
+    test_accuracy = np.zeros((len(etas), len(lamb)))
+
+    for i in range(len(etas)):
+        for j in range(len(lamb)):
+            DNN = DNN_k[i][j]
+
+            train_accuracy[i][j] = DNN.predict(X_train, y_train)[1]
+            test_accuracy[i][j] = DNN.predict(X_test, y_test)[1]
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(train_accuracy, annot=True, ax=ax, cmap="viridis")
+    ax.set_title("Training Accuracy")
+    ax.set_ylabel("$\eta$")
+    ax.set_xlabel("$\lambda$")
+    plt.show()
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(test_accuracy, annot=True, ax=ax, cmap="viridis")
+    ax.set_title("Test Accuracy")
+    ax.set_ylabel("$\eta$")
+    ax.set_xlabel("$\lambda$")
+    plt.show()
+
+
 
     #check_hist(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas[5], lamb[3])
 
