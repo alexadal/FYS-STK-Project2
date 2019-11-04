@@ -22,13 +22,14 @@ random.seed(209)
 np.random.seed(100)
 
 """
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Class test function
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MSE=False):
     accuracies = np.zeros((len(etas),len(lamdbdas)))
+    r2 = np.zeros((len(etas),len(lamdbdas)))
     #loss = np.zeros((len(etas), len(lamdbdas)))
     sns.set()
     title = ''
@@ -48,6 +49,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
                     print("Loss", loss)
                     accuracies[i][j] = loss
                     prob.append(probabilities)
+                    r2[i][j] = R_2(FrankeFunc(X_test[:,1],X_test[:,2]).ravel(),probabilities.ravel())
                     title = 'MSE Neural Network - Franke function'
                     cmap = 'viridis_r'
                 else:
@@ -86,6 +88,19 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
     plt.ylim((etas[0],len(etas)))
     plt.title(title)
     plt.show()
+    if MSE:
+        fig, ax = plt.subplots(figsize=(10, 10))
+        sns.heatmap(r2, annot=True, ax=ax, cmap = 'viridis')
+        ax.set_title("R2-score")
+        # ax.set_ylim(etas[-1],etas[0])
+        ax.set_ylabel("$\eta$")
+        ax.set_xlabel("$\lambda$")
+        # ax.set_yticks(etas)
+        ax.set_yticklabels(etas)
+        plt.ylim((etas[0], len(etas)))
+        #plt.title()
+        plt.show()
+
 
 
 
@@ -133,29 +148,63 @@ def check_hist(class_input,X_train,y_train,X_test,y_test,sizes,eta,lamdbda):
         return 0
 
 
+def test_keras(X_train,y_train,X_test,y_test,etas,lambd):
+    k_Object = k_NN(X_train, y_train, sizes)
+    DNN_k = np.zeros((len(etas), len(lamb)), dtype=object)
+    for i, eta in enumerate(etas):
+        for j, lmbd in enumerate(lamb):
+            DNN = k_NN(X_train,y_train,sizes,eta=eta,lmbd=lmbd)
+            scores = DNN.predict(X_test, y_test)
 
+            DNN_k[i][j] = DNN
 
+            print("Learning rate = ", eta)
+            print("Lambda = ", lmbd)
+            print("Test accuracy: %.3f" % scores[1])
+            print()
 
+    sns.set()
 
+    train_accuracy = np.zeros((len(etas), len(lamb)))
+    test_accuracy = np.zeros((len(etas), len(lamb)))
 
+    for i in range(len(etas)):
+        for j in range(len(lamb)):
+            DNN = DNN_k[i][j]
 
+            train_accuracy[i][j] = DNN.predict(X_train, y_train)[1]
+            test_accuracy[i][j] = DNN.predict(X_test, y_test)[1]
 
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(train_accuracy, annot=True, ax=ax, cmap="viridis")
+    ax.set_title("Training Accuracy")
+    ax.set_ylabel("$\eta$")
+    ax.set_xlabel("$\lambda$")
+    #ax.set_yticks(etas)
+    ax.set_yticklabels(etas)
+    ax.set_xticklabels(lambd)
+    plt.ylim((etas[0],len(etas)))
+    plt.show()
 
-
-
-
-
-
-
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(test_accuracy, annot=True, ax=ax, cmap="viridis")
+    ax.set_title("Test Accuracy")
+    ax.set_ylabel("$\eta$")
+    ax.set_xlabel("$\lambda$")
+    #ax.set_yticks(etas)
+    ax.set_yticklabels(etas)
+    ax.set_xticklabels(lambd)
+    plt.ylim((etas[0],len(etas)))
+    plt.show()
 
 
 
 
 
 """
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Functions used to generate data for testing
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 #Generate data for testing
@@ -219,9 +268,9 @@ def FrankeFunc(x, y):
 
 
 """ 
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 General functions
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 def sigmoid(x):
@@ -273,10 +322,15 @@ def accuracy_score_numpy(Y_test, Y_pred):
     return np.sum(Y_test == Y_pred) / len(Y_test)
 
 
+def R_2(z, z_):
+    #As defined
+    return 1 - np.sum((z - z_) ** 2) / np.sum((z - np.mean(z_)) ** 2)
+
+
 """
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Classes used
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 """
 
@@ -505,10 +559,9 @@ class NeuralNetwork:
                 activations_l.append(softmax)
         elif cost == MSE_Cost:
             for i in range(len(sizes)-1):
-                activations_l.append(linear)
+                activations_l.append(sigmoid)
             activations_l[-1] = ReLU
             print(activations_l)
-
 
         return activations_l
 
@@ -525,13 +578,6 @@ class NeuralNetwork:
         self.weights = [np.random.randn(y, x) for x, y in zip(self.sizes[:-1], self.sizes[1:])]
         #print(self.weights)
 
-
-    #Simple feed-forward algorithm
-    #def feed_forward(self,a):
-        #Return activiation with a as input
-     #   for bias, weight in zip(self.biases, self.weights):
-      #      a = sigmoid(np.dot(weight, a)+bias)
-       # return a
 
 
     def backpropagate(self,X,y):
@@ -769,18 +815,18 @@ class k_NN():
 
 
 """
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Init tester
---------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
 
 
 #Create unit test for functions file
 if __name__ == "__main__":
 
-    X, y = generate_data()
+    #X, y = generate_data()
     #X,y = load_regdata()
-    #X,y = gen_frake(50,1)
+    X,y = gen_frake(50,1)
 
     print("Shape X",X.shape)
     #y = to_categorical(y)
@@ -790,15 +836,16 @@ if __name__ == "__main__":
     print("Franke",FrankeFunc(X_test[:,1],X_test[:,2]).shape)
     print(X_test.shape)
 
+    """
     sc = StandardScaler()
     X_train = sc.fit_transform(X_train)
     X_valid = sc.transform(X_valid)
     X_test = sc.transform(X_test)
+    """
 
 
 
-
-    sizes = [30,20,20,1]
+    sizes = [3,500,100,1]
     print(len(sizes))
     etas = np.logspace(-5,  1, 7)
     #etas = np.logspace(1,  1, 10)
@@ -809,58 +856,17 @@ if __name__ == "__main__":
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
     #grid_search(NeuralNetwork,X_train,y_train,X_train,y_train,sizes,etas,lamb)
-    #grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=True)
-    k_Object = k_NN(X_train,y_train,sizes)
-    DNN_k = np.zeros((len(etas), len(lamb)), dtype=object)
-
-    for i, eta in enumerate(etas):
-        for j, lmbd in enumerate(lamb):
-            DNN = k_NN(X_train,y_train,sizes,eta=eta,lmbd=lmbd)
-            scores = DNN.predict(X_test, y_test)
-
-            DNN_k[i][j] = DNN
-
-            print("Learning rate = ", eta)
-            print("Lambda = ", lmbd)
-            print("Test accuracy: %.3f" % scores[1])
-            print()
-
-    sns.set()
-
-    train_accuracy = np.zeros((len(etas), len(lamb)))
-    test_accuracy = np.zeros((len(etas), len(lamb)))
-
-    for i in range(len(etas)):
-        for j in range(len(lamb)):
-            DNN = DNN_k[i][j]
-
-            train_accuracy[i][j] = DNN.predict(X_train, y_train)[1]
-            test_accuracy[i][j] = DNN.predict(X_test, y_test)[1]
-
-    fig, ax = plt.subplots(figsize=(10, 10))
-    sns.heatmap(train_accuracy, annot=True, ax=ax, cmap="viridis")
-    ax.set_title("Training Accuracy")
-    ax.set_ylabel("$\eta$")
-    ax.set_xlabel("$\lambda$")
-    plt.show()
-
-    fig, ax = plt.subplots(figsize=(10, 10))
-    sns.heatmap(test_accuracy, annot=True, ax=ax, cmap="viridis")
-    ax.set_title("Test Accuracy")
-    ax.set_ylabel("$\eta$")
-    ax.set_xlabel("$\lambda$")
-    plt.show()
-
-
+    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=True)
 
     #check_hist(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas[5], lamb[3])
 
     #losses = validation_test(NeuralNetwork, X_train, y_train, X_valid, y_valid, sizes, etas, lamb)
     #losses = validation_test(NeuralNetwork, X_train, y_train, X_train, y_train, sizes, etas, lamb)
     #losses = validation_test(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas, lamb)
-
     #min_loss = np.amin(losses)
     #print(min_loss)
+
+    #test_keras(X_train, y_train, X_test, y_test, etas, lamb)
 
     """                             
     
