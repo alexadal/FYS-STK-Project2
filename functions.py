@@ -8,6 +8,7 @@ import seaborn as sns
 import sys
 import matplotlib.pyplot as plt
 from imageio import imread
+from scipy.special import expit
 from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
@@ -23,6 +24,7 @@ Class test function
 def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MSE=False):
     accuracies = np.zeros((len(etas),len(lamdbdas)))
     #loss = np.zeros((len(etas), len(lamdbdas)))
+    subtitle = ''
     sns.set()
     title = ''
     cmap = ''
@@ -35,7 +37,8 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
             if class_input == NeuralNetwork:
                 if MSE:
                     print("MSE = true")
-                    Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=eta_in, cost=MSE_Cost)
+                    print(lamb)
+                    Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=eta_in, cost=MSE_Cost,lmbd=lamb)
                     #probabilities, loss = Object.predict(X_test, y_test, classify=False)
                     probabilities, loss = Object.predict(X_test, FrankeFunc(X_test[:,1],X_test[:,2]), classify=False)
                     print("Loss", loss)
@@ -44,9 +47,10 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
                     title = 'MSE Neural Network - Franke function'
                     cmap = 'viridis_r'
                 else:
-                    Object = class_input(X_train, y_train, sizes, epochs=50, batch_size=50, eta=eta_in)
+                    Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=eta_in,lmbd=lamb)
                     probabilities, loss = Object.predict(X_test, y_test, classify=True)
                     print("Loss", loss)
+                    print("lamb",lamb)
                     accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
                     title = 'Accuracy Neural Network'
                     cmap = 'viridis'
@@ -54,29 +58,45 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
 
             #Object.activations()
             elif class_input == logit:
-                Object = class_input(X_train, y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='SGD')
+                Object = class_input(X_train, y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='Vanilla')
                 probabilities = Object.predict(X_test, classify=True)
                 print("Probabilities", probabilities)
                 accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
                 title = 'Accuracy Logistic Regression'
+                if type == 'SGD':
+                    title = 'Stochastic Gradient Descent'
+                elif type == 'NR':
+                    title = 'Newton Rhapson'
+                elif type == 'Vanilla':
+                    title = 'Gradient Descent'
+                else:
+                    title = ''
                 cmap = 'viridis'
 
     print("Accuracies",accuracies)
     z_max = np.amax(y_train)
-    prob_max = np.amax(prob)
-    print("Probabilities_max",prob_max)
+    #prob_max = np.amax(prob)
+    #print("Probabilities_max",prob_max)
     print("Y_train", z_max)
+    #fig, ax = plt.subplots(figsize=(4, 5.3))
     fig, ax = plt.subplots(figsize=(10, 10))
-    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap, vmax=0.8)
-    ax.set_title("Accuracy")
+
+    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap)
+    ax.set_title(title)
+    fig.suptitle(title)
     #ax.set_ylim(etas[-1],etas[0])
+    #plt.xscale = 'log'
+    #plt.ysxale = 'log'
     ax.set_ylabel("$\eta$")
     ax.set_xlabel("$\lambda$")
+    ax.set_xticklabels(lamdbdas)
+    ax.set_yticklabels(etas)
     #ax.set_yticks(etas)
     #ax.set_yticklabels(etas)
-    plt.ylim((etas[0],etas[-1]))
+    plt.ylim((0,len(etas)))
     plt.title(title)
     plt.show()
+    return accuracies
 
 
 
@@ -216,7 +236,8 @@ General functions
 """
 
 def sigmoid(x):
-    return 1/(1 + np.exp(-x))
+    return expit(x)
+    #return 1/(1 + np.exp(-x))
 
 
 def sigmoid_der(x):
@@ -274,8 +295,9 @@ Classes used
 class logit:
 
 
-    def __init__(self,X,y,epochs=10,batch_s=80,eta_in=0.1,lamd=0,type='Vanilla'):
+    def __init__(self,X,y,epochs=10,batch_s=80,eta_in=0.1,lamd=0,type='SDG'):
         self.weights = self.rnd_betas(len(X[0,:]))
+        self.lamd = lamd
         self.gd_fit(X,y,type,epochs,batch_s,eta=eta_in)
 
 
@@ -284,7 +306,8 @@ class logit:
 
     #give
     def pi_beta(self,beta_x):
-        return 1/(1+np.exp(-beta_x))
+        return expit(beta_x)
+        #return 1/(1+np.exp(-beta_x))
 
 
     # Create cost function based on the number of parameters
@@ -310,7 +333,10 @@ class logit:
         #print("prob shape",prob.shape)
         s_p = y.reshape(prob.shape)-prob
 
-        grad = -np.dot(X.T,s_p)
+        grad_i = (-1/n*np.dot(X.T,s_p))[0]
+        grad_a = (-1/n*(np.dot(X.T,s_p)))[1:]-(self.lamd/n)*betas[1:]
+
+        grad = np.vstack((grad_i[:,np.newaxis],grad_a))
         #grad = -X.T @y+X.T@self.pi_beta(X, betas)
         return grad
 
@@ -384,6 +410,7 @@ class logit:
                 #Break loop for convergence
                 if i>0:
                     if np.abs(np.mean(np.mean(eta_NR,axis=1),axis=0)-np.mean(np.mean(eta_old,axis=1),axis=0)) <= conv:
+                        print('iterations before conv: ',i)
                         break
             elif iter == 'Vanilla':
                 self.weights -= eta*self.gd(X,y,betas_old)
