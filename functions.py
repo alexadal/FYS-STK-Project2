@@ -6,6 +6,7 @@ from sklearn.preprocessing import PolynomialFeatures
 import random
 import seaborn as sns
 import sys
+from scipy.special import expit
 import matplotlib.pyplot as plt
 from imageio import imread
 from sklearn.datasets import load_breast_cancer
@@ -43,7 +44,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
             if class_input == NeuralNetwork:
                 if MSE:
                     print("MSE = true")
-                    Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=eta_in, cost=MSE_Cost)
+                    Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=eta_in, lmbd=lamb, cost=MSE_Cost)
                     #probabilities, loss = Object.predict(X_test, y_test, classify=False)
                     probabilities, loss = Object.predict(X_test, FrankeFunc(X_test[:,1],X_test[:,2]), classify=False)
                     print("Loss", loss)
@@ -53,7 +54,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
                     title = 'MSE Neural Network - Franke function'
                     cmap = 'viridis_r'
                 else:
-                    Object = class_input(X_train, y_train, sizes, epochs=50, batch_size=50, eta=eta_in)
+                    Object = class_input(X_train, y_train, sizes, epochs=50, batch_size=50,lmbd=lamb,eta=eta_in)
                     probabilities, loss = Object.predict(X_test, y_test, classify=True)
                     print("Loss", loss)
                     accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
@@ -63,7 +64,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
 
             #Object.activations()
             elif class_input == logit:
-                Object = class_input(X_train, y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='SGD')
+                Object = class_input(X_train, y_train, epochs=500, batch_s=10, eta_in=eta_in, lamd=lamb,type='SGD')
                 probabilities = Object.predict(X_test, classify=True)
                 print("Probabilities", probabilities)
                 accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
@@ -71,20 +72,23 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
                 cmap = 'viridis'
 
     print("Accuracies",accuracies)
+    min_run = np.amin(accuracies)
+    """
     z_max = np.amax(y_train)
     prob_max = np.amax(prob)
-    min_run = np.amin(accuracies)
+    
     print("Probabilities_max",prob_max)
-    print("Y_train", z_max)
+    print("Y_train", z_max)"""
     print("Minimum MSE", min_run)
     fig, ax = plt.subplots(figsize=(10, 10))
-    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap, vmax = 0.15)
+    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap)
     ax.set_title("Accuracy")
     #ax.set_ylim(etas[-1],etas[0])
     ax.set_ylabel("$\eta$")
     ax.set_xlabel("$\lambda$")
     #ax.set_yticks(etas)
     ax.set_yticklabels(etas)
+    ax.set_xticklabels(lamdbdas)
     plt.ylim((etas[0],len(etas)))
     plt.title(title)
     plt.show()
@@ -97,6 +101,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
         ax.set_xlabel("$\lambda$")
         # ax.set_yticks(etas)
         ax.set_yticklabels(etas)
+        ax.set_xticklabels(lamdbdas)
         plt.ylim((etas[0], len(etas)))
         #plt.title()
         plt.show()
@@ -274,7 +279,7 @@ General functions
 """
 
 def sigmoid(x):
-    return 1/(1 + np.exp(-x))
+    return expit(x)
 
 
 def sigmoid_der(x):
@@ -338,8 +343,10 @@ class logit:
 
 
     def __init__(self,X,y,epochs=10,batch_s=80,eta_in=0.1,lamd=0,type='Vanilla'):
+        self.lamd = lamd
         self.weights = self.rnd_betas(len(X[0,:]))
         self.gd_fit(X,y,type,epochs,batch_s,eta=eta_in)
+
 
 
     def linreg(self,X,betas):
@@ -353,9 +360,10 @@ class logit:
     # Create cost function based on the number of parameters
     def cost_func(self,X,y,betas):
         #get number of observation to average cost function over
-        n = len(X[0,:])
+        n = len(X[:,1])
         scores = self.linreg(X,betas)
-        Cost = np.sum(y*scores-np.log(1+np.exp(scores)))
+        Cost = 1/n*np.sum(y*scores-np.log(1+np.exp(scores)))+self.lamd/(2*n)*sum(betas)**2
+
         return Cost
 
     #Initiate random betas for grad descent
@@ -365,7 +373,7 @@ class logit:
 
     #Get the gradient of log function
     def gd(self,X,y,betas):
-        n = len(X[0])
+        n = len(X[:,1])
         #grad = 1/n*np.sum((y-self.pi_beta(X, betas)*X))
         #print("P-matrix",self.pi_beta(X, betas).shape)
         scores = self.linreg(X,betas)
@@ -373,7 +381,10 @@ class logit:
         #print("prob shape",prob.shape)
         s_p = y.reshape(prob.shape)-prob
 
-        grad = -np.dot(X.T,s_p)
+        grad_i = (-1/n*np.dot(X.T,s_p))[0]
+        grad_a = (-1/n*(np.dot(X.T,s_p)))[1]-(self.lamd/n)*betas[1:]
+
+        grad = np.vstack((grad_i[:,np.newaxis],grad_a))
         #grad = -X.T @y+X.T@self.pi_beta(X, betas)
         return grad
 
@@ -386,10 +397,21 @@ class logit:
         w = p_1 @ p_0.T
         W = np.diag(np.diag(w))
         A = X.T @ W @ X
+        """
+        corr = np.corrcoef(A)
+        fig, ax = plt.subplots(figsize=(40, 40))
+        #sns.heatmap(corr, cmap='cool', annot=True)
+        sns.heatmap(corr, vmin=-1, vmax=1, square=True, cmap="coolwarm", linewidths=0.1, annot=True, annot_kws={"fontsize": 3})
+        ax.set_title('Correlation Matrix')
+        ax.xaxis.set_tick_params(labelsize=5)
+        ax.yaxis.set_tick_params(labelsize=5)
+        plt.show()
+        """
         u, s, v = np.linalg.svd(A)
         A_inv = np.dot(v.transpose(), np.dot(np.diag(s ** -1), u.transpose()))
         eta = A_inv
         return eta
+
 
     #def st_gd(self,X,y,betas):
 
@@ -445,9 +467,11 @@ class logit:
                 #betas-= eta@self.gd(X,y,betas)
                 self.weights -= eta_NR@self.gd(X,y,self.weights)
                 #Break loop for convergence
+                """
                 if i>0:
                     if np.abs(np.mean(np.mean(eta_NR,axis=1),axis=0)-np.mean(np.mean(eta_old,axis=1),axis=0)) <= conv:
                         break
+                """
             elif iter == 'Vanilla':
                 self.weights -= eta*self.gd(X,y,betas_old)
             elif iter == 'SGD':
@@ -553,14 +577,14 @@ class NeuralNetwork:
                 activations_l.append(sigmoid)
                 #print("Ok")
             if sizes[-1] == 1:
-                activations_l.append(sigmoid)
+                activations_l[-1] = sigmoid
             else:
                 #softmax
-                activations_l.append(softmax)
+                activations_l[-1] = softmax
         elif cost == MSE_Cost:
             for i in range(len(sizes)-1):
                 activations_l.append(sigmoid)
-            activations_l[-1] = ReLU
+            activations_l[-1] = sigmoid
             print(activations_l)
 
         return activations_l
@@ -687,7 +711,7 @@ class NeuralNetwork:
         return t0 / (t + t1)
 
     #Update with regularization l2,l1
-    def update_m_batch(self, batchx, batchy, epoch, eta_i, m=100, i=1,lamd=0):
+    def update_m_batch(self, batchx, batchy, epoch, eta_i, m=100, i=1):
         #gradients = self.gd(batchx, batchy, self.weights)
 
         #der_b = [np.zeros(bias.shape) for bias in self.biases]
@@ -704,7 +728,7 @@ class NeuralNetwork:
         der_b,der_w = self.backpropagate(batchx, batchy)
         self.biases = [b-(eta)*db for b,db in zip(self.biases,der_b)]
         #self.biases = self.biases - (eta / m) * der_b
-        self.weights = [(1-(eta*lamd))*w-(eta)*dw for w,dw in zip(self.weights,der_w)]
+        self.weights = [(1-(eta*self.lmbd))*w-(eta)*dw for w,dw in zip(self.weights,der_w)]
 
 
 
@@ -824,9 +848,10 @@ Init tester
 #Create unit test for functions file
 if __name__ == "__main__":
 
-    #X, y = generate_data()
+    X, y = generate_data()
+
     #X,y = load_regdata()
-    X,y = gen_frake(50,1)
+    #X,y = gen_frake(50,1)
 
     print("Shape X",X.shape)
     #y = to_categorical(y)
@@ -836,27 +861,36 @@ if __name__ == "__main__":
     print("Franke",FrankeFunc(X_test[:,1],X_test[:,2]).shape)
     print(X_test.shape)
 
-    """
+
     sc = StandardScaler()
     X_train = sc.fit_transform(X_train)
     X_valid = sc.transform(X_valid)
     X_test = sc.transform(X_test)
-    """
 
 
 
-    sizes = [3,500,100,1]
+
+    sizes = [len(X[1]),50,10,1]
     print(len(sizes))
+    #etas = np.geomspace(1e-12,  1e-6, 7)
     etas = np.logspace(-5,  1, 7)
-    #etas = np.logspace(1,  1, 10)
-    lamb = np.logspace(-5, 1, 7)
+    #etas = np.arange(1e-7, 2e-1, 1e-2)
+    lamb = np.logspace(-5,  1, 7)
+
+    #lamb = np.linspace(1, 2, 7)
+    #lamb = np.geomspace(1e-7,  1e-1, 7)
+
+    #lamb = np.arange(1e-7, 2e-1, 1e-2)
+
     #etas = etas[:4]
     print("etas",etas)
     #lamb = np.zeros(1)
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
     #grid_search(NeuralNetwork,X_train,y_train,X_train,y_train,sizes,etas,lamb)
-    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=True)
+    #grid_search(NeuralNetwork,X_train,y_train,X_train,y_train,sizes,etas,lamb)
+
+    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=False)
 
     #check_hist(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas[5], lamb[3])
 
