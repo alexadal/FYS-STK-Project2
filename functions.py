@@ -11,6 +11,16 @@ from imageio import imread
 from scipy.special import expit
 from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.optimizers import SGD
+from keras.utils import to_categorical
+from tensorflow.python.framework import ops
+ops.reset_default_graph()
+random.seed(209)
+np.random.seed(100)
 
 random.seed(209)
 np.random.seed(100)
@@ -23,6 +33,8 @@ Class test function
 
 def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MSE=False):
     accuracies = np.zeros((len(etas),len(lamdbdas)))
+    r2 = np.zeros((len(etas),len(lamdbdas)))
+
     #loss = np.zeros((len(etas), len(lamdbdas)))
     subtitle = ''
     sns.set()
@@ -41,6 +53,8 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
                     Object = class_input(X_train, y_train, sizes, epochs=100, batch_size=100, eta=eta_in, cost=MSE_Cost,lmbd=lamb)
                     #probabilities, loss = Object.predict(X_test, y_test, classify=False)
                     probabilities, loss = Object.predict(X_test, FrankeFunc(X_test[:,1],X_test[:,2]), classify=False)
+                    r2[i][j] = R_2(FrankeFunc(X_test[:,1],X_test[:,2]).ravel(),probabilities.ravel())
+
                     print("Loss", loss)
                     accuracies[i][j] = loss
                     prob.append(probabilities)
@@ -58,7 +72,7 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
 
             #Object.activations()
             elif class_input == logit:
-                Object = class_input(X_train, y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='Vanilla')
+                Object = class_input(X_train, y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='NR')
                 probabilities = Object.predict(X_test, classify=True)
                 print("Probabilities", probabilities)
                 accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
@@ -80,10 +94,9 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
     print("Y_train", z_max)
     #fig, ax = plt.subplots(figsize=(4, 5.3))
     fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap, vmax = 1)
 
-    sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap)
     ax.set_title(title)
-    fig.suptitle(title)
     #ax.set_ylim(etas[-1],etas[0])
     #plt.xscale = 'log'
     #plt.ysxale = 'log'
@@ -94,8 +107,23 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
     #ax.set_yticks(etas)
     #ax.set_yticklabels(etas)
     plt.ylim((0,len(etas)))
-    plt.title(title)
     plt.show()
+
+    if MSE:
+        fig, ax = plt.subplots(figsize=(10, 10))
+        sns.heatmap(r2, annot=True, ax=ax, cmap='viridis')
+        ax.set_title("R2-score")
+        # ax.set_ylim(etas[-1],etas[0])
+        ax.set_ylabel("$\eta$")
+        ax.set_xlabel("$\lambda$")
+        # ax.set_yticks(etas)
+        ax.set_yticklabels(etas)
+        plt.ylim((etas[0], len(etas)))
+        # plt.title()
+        plt.show()
+
+
+
     return accuracies
 
 
@@ -148,6 +176,54 @@ def check_hist(class_input,X_train,y_train,X_test,y_test,sizes,eta,lamdbda):
 
 
 
+def test_keras(X_train,y_train,X_test,y_test,sizes,etas,lamb):
+    k_Object = k_NN(X_train, y_train, sizes)
+    DNN_k = np.zeros((len(etas), len(lamb)), dtype=object)
+    for i, eta in enumerate(etas):
+        for j, lmbd in enumerate(lamb):
+            DNN = k_NN(X_train,y_train,sizes,eta=eta,lmbd=lmbd)
+            scores = DNN.predict(X_test, y_test)
+
+            DNN_k[i][j] = DNN
+
+            print("Learning rate = ", eta)
+            print("Lambda = ", lmbd)
+            print("Test accuracy: %.3f" % scores[1])
+            print()
+
+    sns.set()
+
+    train_accuracy = np.zeros((len(etas), len(lamb)))
+    test_accuracy = np.zeros((len(etas), len(lamb)))
+
+    for i in range(len(etas)):
+        for j in range(len(lamb)):
+            DNN = DNN_k[i][j]
+
+            train_accuracy[i][j] = DNN.predict(X_train, y_train)[1]
+            test_accuracy[i][j] = DNN.predict(X_test, y_test)[1]
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(train_accuracy, annot=True, ax=ax, cmap="viridis")
+    ax.set_title("Training Accuracy")
+    ax.set_ylabel("$\eta$")
+    ax.set_xlabel("$\lambda$")
+    #ax.set_yticks(etas)
+    ax.set_yticklabels(etas)
+    ax.set_xticklabels(lambd)
+    plt.ylim((etas[0],len(etas)))
+    plt.show()
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(test_accuracy, annot=True, ax=ax, cmap="viridis")
+    ax.set_title("Test Accuracy")
+    ax.set_ylabel("$\eta$")
+    ax.set_xlabel("$\lambda$")
+    #ax.set_yticks(etas)
+    ax.set_yticklabels(etas)
+    ax.set_xticklabels(lambd)
+    plt.ylim((etas[0],len(etas)))
+    plt.show()
 
 
 
@@ -285,6 +361,11 @@ def accuracy_score_numpy(Y_test, Y_pred):
     return np.sum(Y_test == Y_pred) / len(Y_test)
 
 
+def R_2(z, z_):
+    #As defined
+    return 1 - np.sum((z - z_) ** 2) / np.sum((z - np.mean(z_)) ** 2)
+
+
 """
 --------------------------------------------------------------------
 Classes used
@@ -334,7 +415,7 @@ class logit:
         s_p = y.reshape(prob.shape)-prob
 
         grad_i = (-1/n*np.dot(X.T,s_p))[0]
-        grad_a = (-1/n*(np.dot(X.T,s_p)))[1:]-(self.lamd/n)*betas[1:]
+        grad_a = (-1/n*(np.dot(X.T,s_p)))[1:]-(self.lamd)*betas[1:]
 
         grad = np.vstack((grad_i[:,np.newaxis],grad_a))
         #grad = -X.T @y+X.T@self.pi_beta(X, betas)
@@ -349,8 +430,22 @@ class logit:
         w = p_1 @ p_0.T
         W = np.diag(np.diag(w))
         A = X.T @ W @ X
-        u, s, v = np.linalg.svd(A)
-        A_inv = np.dot(v.transpose(), np.dot(np.diag(s ** -1), u.transpose()))
+        """
+        corr = np.corrcoef(A)
+        fig, ax = plt.subplots(figsize=(40, 40))
+        #sns.heatmap(corr, cmap='cool', annot=True)
+        sns.heatmap(corr, vmin=-1, vmax=1, square=True, cmap="coolwarm", linewidths=0.1, annot=True, annot_kws={"fontsize": 3})
+        ax.set_title('Correlation Matrix')
+        ax.xaxis.set_tick_params(labelsize=5)
+        ax.yaxis.set_tick_params(labelsize=5)
+        plt.ylim((0, len(A[0])))
+        plt.show()
+        """
+
+
+        #u, s, v = np.linalg.svd(A)
+        #A_inv = np.dot(v.transpose(), np.dot(np.diag(s ** -1), u.transpose()))
+        A_inv = np.linalg.inv(A)
         eta = A_inv
         return eta
 
@@ -408,7 +503,7 @@ class logit:
                 #betas-= eta@self.gd(X,y,betas)
                 self.weights -= eta_NR@self.gd(X,y,self.weights)
                 #Break loop for convergence
-                if i>0:
+                if i>1:
                     if np.abs(np.mean(np.mean(eta_NR,axis=1),axis=0)-np.mean(np.mean(eta_old,axis=1),axis=0)) <= conv:
                         print('iterations before conv: ',i)
                         break
@@ -454,7 +549,7 @@ class CrossE_Cost:
     @staticmethod
     def cost_f(a, y):
         """Use np.nan_to_num to avoid nan of log part if a,y = 1 """
-        return (-1./len(y))*np.sum(y*np.log(a)+(1-y)*np.log(1-a))
+        return (-1./len(y))*np.sum(np.nan_to_num(y*np.log(a)+(1-y)*np.log(1-a)))
     @staticmethod
         #Y included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid part cancels increasing learning pace
@@ -513,7 +608,7 @@ class NeuralNetwork:
     def activations_in(self,cost,sizes):
         activations_l = []
         if cost == CrossE_Cost:
-            for i in range(len(sizes)):
+            for i in range(len(sizes)-1):
                 activations_l.append(sigmoid)
                 #print("Ok")
             if sizes[-1] == 1:
@@ -522,13 +617,10 @@ class NeuralNetwork:
                 #softmax
                 activations_l.append(softmax)
         elif cost == MSE_Cost:
-            for i in range(len(sizes)):
+            for i in range(len(sizes)-1):
                 activations_l.append(sigmoid)
-                #print("MSE")
-            if sizes[-1] == 1:
-                activations_l.append(linear)
-                print("Append linear")
-
+            activations_l[-1] = linear
+            print(activations_l)
 
         return activations_l
 
@@ -573,7 +665,7 @@ class NeuralNetwork:
         #Activate all layers
         for bias, weight, act in zip(self.biases, self.weights,self.activations):
             #print("Wt",weight.shape)
-            if act == linear:
+            if act == ReLU:
                 print("-------------------------------------------------------------- Linear Der -------------------------------------------------------")
             z = np.matmul(activation,weight.T)+bias
             #print("Z",z.shape)
@@ -605,27 +697,31 @@ class NeuralNetwork:
         #Start with next to out-layer
         for l in range(2,self.n_layers):
             z = zs[-l]
-            #print("Z",z.shape)
-            #sig_der = sigmoid_der(z)
+            # print("Z",z.shape)
+            # sig_der = sigmoid_der(z)
             act_der = sigmoid_der(z)
-            if self.activations[l] == ReLU:
-                act_der = reluDerivative(z)
 
-            elif self.activations[l] == linear:
+            if self.activations[-l] == ReLU:
+                act_der = reluDerivative(z)
+                print("-------------------------------------------------------------- Der ReLU -------------------------------------------------------")
+
+
+            elif self.activations[-l] == linear:
                 act_der = linear_der(z)
-                print("-------------------------------------------------------------- Linear Der -------------------------------------------------------")
-            #print("Z-der", sigmoid_der(z).shape)
-            #For layer h
-            #delta_h = dC/d_ah X da_h/dz_h
+                print(
+                    "-------------------------------------------------------------- Der Linear -------------------------------------------------------")
+
+            # For layer h
+            # delta_h = dC/d_ah X da_h/dz_h
             # 1. dC/da_h = delta_(h+1)*w_h+1
             # 2. da_h/dz_h = sigma'(z_h)
-            delta = np.matmul(delta,self.weights[-l+1])*act_der
-            #print("Activations",activations[-l-1].T)
-            #print("Weights",self.weights[-l+1].T.shape)
-            #print("Activations",activations[0])
-            der_w[-l] = np.matmul(delta.T,activations[-l-1])
-            der_b[-l] = np.sum(delta,axis=0)
-            #print("Derivate",der_w)
+            delta = np.matmul(delta, self.weights[-l + 1]) * act_der
+            # print("Activations",activations[-l-1].T)
+            # print("Weights",self.weights[-l+1].T.shape)
+            # print("Activations",activations[0])
+            der_w[-l] = np.matmul(delta.T, activations[-l - 1])
+            der_b[-l] = np.sum(delta, axis=0)
+            # print("Derivate",der_w)
 
         return der_b, der_w
 
@@ -677,7 +773,7 @@ class NeuralNetwork:
         der_b,der_w = self.backpropagate(batchx, batchy)
         self.biases = [b-(eta)*db for b,db in zip(self.biases,der_b)]
         #self.biases = self.biases - (eta / m) * der_b
-        self.weights = [(1-(eta*lamd))*w-(eta)*dw for w,dw in zip(self.weights,der_w)]
+        self.weights = [(1-(eta*self.lmbd))*w-(eta)*dw for w,dw in zip(self.weights,der_w)]
 
 
 
@@ -698,7 +794,7 @@ class NeuralNetwork:
                 print("-------------------------------------------------------------- Linear -------------------------------------------------------")
 
 
-        probabilities = a
+        probabilities = np.nan_to_num(a)
 
 
             #probabilities[i] = a
@@ -741,6 +837,65 @@ class NeuralNetwork:
 """
 
 
+
+class k_NN():
+    def __init__(
+            self,
+            X,
+            y,
+            sizes,
+            cost=CrossE_Cost,
+            epochs=100,
+            batch_size=100,
+            eta=0,
+            lmbd=0.000):
+        self.X = X
+        self.y = y
+        self.sizes = sizes
+        #self.cost = cost
+        #self.activations = self.activations_in(cost, sizes)
+        #self.n_inputs = X_data.shape[0]
+        #self.n_features = X_data.shape[1]
+        #self.n_hidden_neurons = n_hidden_neurons
+        #self.n_categories = n_categories
+        self.epochs = epochs
+        self.batch_size = batch_size
+        #self.iterations = self.n_inputs // self.batch_size
+        #self.eta = eta
+        self.lmbd = lmbd
+        self.n_layers = len(sizes)
+        self.Object = self.create_neural_network_keras(eta,lmbd)
+        self.Object.fit(self.X, self.y, epochs=epochs, batch_size=batch_size, verbose=0)
+        #scores = DNN.evaluate(X_test, Y_test)
+
+
+    def create_neural_network_keras(self, eta,lmbd):
+        model = Sequential()
+        model.add(Dense(self.sizes[1],input_dim=self.sizes[0],activation='sigmoid', kernel_regularizer=l2(lmbd)))
+        for neurons in self.sizes[2:-1]:
+            print("Neurons",neurons)
+            model.add(Dense(neurons, activation='sigmoid', kernel_regularizer=l2(lmbd)))
+        model.add(Dense(1, activation='sigmoid'))
+        sgd = SGD(lr=eta)
+        model.compile(optimizer=sgd,
+                      loss='binary_crossentropy',
+                      metrics=['accuracy'])
+        #print(model.summary())
+        return model
+
+    def predict(self, X,y,classify=False):
+        scores = self.Object.evaluate(X, y)
+        return scores
+
+
+
+
+
+
+
+
+
+
 """
 --------------------------------------------------------------------
 Init tester
@@ -761,21 +916,22 @@ if __name__ == "__main__":
 
     print("Franke",FrankeFunc(X_test[:,1],X_test[:,2]).shape)
     print(X_test.shape)
+
     """
     sc = StandardScaler()
     X_train = sc.fit_transform(X_train)
     X_valid = sc.transform(X_valid)
     X_test = sc.transform(X_test)
-
-    y_test = sc.fit_transform(y_test.reshape(-1,1))
-    y_train = sc.fit_transform(y_train.reshape(-1,1))
     """
 
-    sizes = [3,3,2,1]
+
+
+    sizes = [len(X[1]),50,50,1]
     print(len(sizes))
-    etas = np.logspace(-5,  1, 10)
+    etas = np.logspace(-5,  1, 7)
     #etas = np.logspace(1,  1, 10)
-    lamb = np.logspace(-5, 1, 10)
+    lamb = np.logspace(-5, 1, 7)
+    #lamb = np.geomspace(1,100,10)
     #lamb = np.zeros(1)
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
