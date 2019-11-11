@@ -8,10 +8,10 @@ import seaborn as sns
 import sys
 import matplotlib.pyplot as plt
 from imageio import imread
+from sklearn.metrics import confusion_matrix
 from scipy.special import expit
 from sklearn.datasets import load_breast_cancer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
-
 random.seed(209)
 np.random.seed(100)
 
@@ -58,10 +58,17 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
 
             #Object.activations()
             elif class_input == logit:
-                Object = class_input(X_train, y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='Vanilla')
+                Object = class_input(X=X_train, y=y_train, epochs=100, batch_s=100, eta_in=eta_in, lamd=lamb,type='Vanilla')
                 probabilities = Object.predict(X_test, classify=True)
                 print("Probabilities", probabilities)
                 accuracies[i][j] = accuracy_score_numpy(probabilities, y_test)
+                class_names = [0, 1]
+                if accuracies[i][j] == 0.8132227798385337:
+                    print("Eta: ", eta_in)
+                    print("Lamg: ",lamb)
+                    print("Acc", accuracies[i][j])
+                    plot_confusion_matrix(y_test, probabilities, classes=class_names, title='GD: Resampled Training Data', normalize=True)
+                    plt.show()
                 title = 'Accuracy Logistic Regression'
                 if type == 'SGD':
                     title = 'Stochastic Gradient Descent'
@@ -82,8 +89,8 @@ def grid_search(class_input,X_train,y_train,X_test,y_test,sizes,etas,lamdbdas,MS
     fig, ax = plt.subplots(figsize=(10, 10))
 
     sns.heatmap(accuracies, annot=True, ax=ax, cmap=cmap)
-    ax.set_title(title)
-    fig.suptitle(title)
+    #ax.set_title(title)
+    #fig.suptitle(title)
     #ax.set_ylim(etas[-1],etas[0])
     #plt.xscale = 'log'
     #plt.ysxale = 'log'
@@ -283,7 +290,61 @@ def accuracy_score_numpy(Y_test, Y_pred):
     Y_pred = Y_pred.reshape(Y_test.shape)
     #print('Shape comparision  {}  {}'.format(Y_test.shape,Y_pred.shape))
     return np.sum(Y_test == Y_pred) / len(Y_test)
+#The following function is borrowed from https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
+def plot_confusion_matrix(y_true, y_pred, classes,
+                          normalize=False,
+                          title=None,
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if not title:
+        if normalize:
+            title = 'Normalized confusion matrix'
+        else:
+            title = 'Confusion matrix, without normalization'
 
+    # Compute confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    # Only use the labels that appear in the data
+    #classes = classes[unique_labels(y_true, y_pred)]
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    print(cm)
+
+    fig, ax = plt.subplots()
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax)
+    # We want to show all ticks...
+    ax.set(xticks=np.arange(cm.shape[1]),
+      #     yticks=np.arange(cm.shape[0]),
+           yticks = [0,1],
+           ylim = [-0.5,1.5],
+           # ... and label them with the respective list entries
+           xticklabels=classes, yticklabels=classes,
+           title=title,
+           ylabel='True label',
+           xlabel='Predicted label')
+
+    # Rotate the tick labels and set their alignment.
+    #plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+     #        rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    fig.tight_layout()
+    return ax
 
 """
 --------------------------------------------------------------------
@@ -334,7 +395,8 @@ class logit:
         s_p = y.reshape(prob.shape)-prob
 
         grad_i = (-1/n*np.dot(X.T,s_p))[0]
-        grad_a = (-1/n*(np.dot(X.T,s_p)))[1:]-(self.lamd/n)*betas[1:]
+        #grad_a = (-1/n*(np.dot(X.T,s_p)))[1:]-(self.lamd/n)*betas[1:]
+        grad_a = (-1/n*(np.dot(X.T,s_p)))[1:]-(self.lamd)*betas[1:]
 
         grad = np.vstack((grad_i[:,np.newaxis],grad_a))
         #grad = -X.T @y+X.T@self.pi_beta(X, betas)
@@ -454,7 +516,7 @@ class CrossE_Cost:
     @staticmethod
     def cost_f(a, y):
         """Use np.nan_to_num to avoid nan of log part if a,y = 1 """
-        return (-1./len(y))*np.sum(y*np.log(a)+(1-y)*np.log(1-a))
+        return (1./len(y))*np.sum(np.nan_to_num(-y*np.log(a)-(1-y)*np.log(1-a)))
     @staticmethod
         #Y included for easy running of Neural Net Code
         #delta = dC/da_out, sigmoid part cancels increasing learning pace
@@ -649,9 +711,9 @@ class NeuralNetwork:
             for batchx, batchy in zip(mini_batches_x, mini_batches_y):
                 self.update_m_batch(batchx, batchy, epoch, eta)
                 k = k+1
-                print("Batch no: " + "{}".format(k))
+                #print("Batch no: " + "{}".format(k))
                 cost = self.cost.cost_f(self.feed_forward_out(batchx),batchy.reshape(-1,1))
-                print("Loss",cost)
+                #print("Loss",cost)
 
 
 
@@ -677,7 +739,7 @@ class NeuralNetwork:
         der_b,der_w = self.backpropagate(batchx, batchy)
         self.biases = [b-(eta)*db for b,db in zip(self.biases,der_b)]
         #self.biases = self.biases - (eta / m) * der_b
-        self.weights = [(1-(eta*lamd))*w-(eta)*dw for w,dw in zip(self.weights,der_w)]
+        self.weights = [(1-(eta*self.lmbd))*w-(eta)*dw for w,dw in zip(self.weights,der_w)]
 
 
 
@@ -751,9 +813,9 @@ Init tester
 #Create unit test for functions file
 if __name__ == "__main__":
 
-    #X, y = generate_data()
+    X, y = generate_data()
     #X,y = load_regdata()
-    X,y = gen_frake(50,1)
+    #X,y = gen_frake(50,1)
 
     print("Shape X",X.shape)
     X_t, X_test, y_t, y_test = train_test_split(X, y, test_size = 0.2,shuffle=True)
@@ -761,26 +823,24 @@ if __name__ == "__main__":
 
     print("Franke",FrankeFunc(X_test[:,1],X_test[:,2]).shape)
     print(X_test.shape)
-    """
+
     sc = StandardScaler()
     X_train = sc.fit_transform(X_train)
     X_valid = sc.transform(X_valid)
     X_test = sc.transform(X_test)
 
-    y_test = sc.fit_transform(y_test.reshape(-1,1))
-    y_train = sc.fit_transform(y_train.reshape(-1,1))
-    """
 
-    sizes = [3,3,2,1]
+
+    sizes = [len(X[0,:]),50,50,1]
     print(len(sizes))
     etas = np.logspace(-5,  1, 10)
     #etas = np.logspace(1,  1, 10)
-    lamb = np.logspace(-5, 1, 10)
+    lamb = np.logspace(-1, 2, 10)
     #lamb = np.zeros(1)
     #Run test funtion
     #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
     #grid_search(NeuralNetwork,X_train,y_train,X_train,y_train,sizes,etas,lamb)
-    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=True)
+    grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=False)
 
     #check_hist(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas[5], lamb[3])
 

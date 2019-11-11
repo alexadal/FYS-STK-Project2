@@ -2,16 +2,17 @@ import pandas as pd
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from functions import logit, grid_search, NeuralNetwork
+from functions import logit, grid_search, NeuralNetwork,accuracy_score_numpy
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score,confusion_matrix
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.linear_model import LogisticRegression
 import scikitplot as skplt
-from plotfunctions import demographical_data, numerical_data, pay_hist_plot, scatter_plot_numerical_data
+from plotfunctions import demographical_data, numerical_data, pay_hist_plot, scatter_plot_numerical_data,plot_confusion_matrix
 from sklearn.metrics import confusion_matrix, accuracy_score, roc_auc_score
+import time
 
 # Trying to set the seed
 seed = 209
@@ -197,6 +198,7 @@ etas = np.logspace(-5, 1, 10)
 lamb = np.logspace(-5, 1, 10)
 # lamb = np.zeros(1)
 
+#taken from code shared on piazza: https://piazza.com/class/jz8smbptoj35ra?cid=124
 def bestCurve(y):
 	defaults = sum(y == 1)
 	total = len(y)
@@ -219,13 +221,13 @@ lambdas = np.logspace(-5, 2, 8)
 #lamb = np.logspace(-5, 2, 8)
 
 accuracies = np.zeros((len(etas),len(lambdas)))
-accuracies = grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes=sizes,etas=etas,lamdbdas = lambdas)
+#accuracies = grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes=sizes,etas=etas,lamdbdas = lambdas)
 #accuracies = grid_search(NeuralNetwork,X_train_new,y_train_new,X_test,y_test,sizes,etas,lambdas)
 
 #accuracies = np.zeros((len(etas),1))
-#accuracies = grid_search(logit,X_train,y_train,X_test,y_test,sizes=sizes,etas=etas,lamdbdas=lambdas)
-#accuracies = grid_search(logit,X_train_new,y_train_new,X_test,y_test,sizes,etas,lamdbdas = lambdas)
 
+accuracies = grid_search(logit,X_train,y_train,X_test,y_test,sizes=sizes,etas=etas,lamdbdas=lambdas)
+#accuracies = grid_search(logit,X_train_new,y_train_new,X_test,y_test,sizes=sizes,etas=etas,lamdbdas = lambdas)
 
 
 print(np.amax(accuracies))
@@ -240,36 +242,106 @@ lambdas = []
 # λ=0.1andη=0.0001 Vanilla
 # $\lambda$ = 10 and $\eta$ = 0.001. Neural Network
 
-'''
+
 
 
 #Optimal Conditions
 #SGD $\eta$ = 0.1 and $\lambda$ = 0.001.
 #VANILLA $\eta$ = 0.01 $\lambda$ = 0.1
-#NEURAL NET eta = 0.001, lamb  = 10
+#NEURAL NET eta = 0.01, lamb  = 0.01
 
 #Resampled
 #SGD $\eta$ = 1  $\lambda$ = 0.01
 #VANILLA $\eta$ = 0.1 $\lambda$ = 0.01
-#NEURAL NET eta = 0.001, lamb  = 10
+#NEURAL NET $\lambda$ = 0.1 and $\eta$ = 0.01.
+'''
+timing = [0]*3
+acc = [0]*3
+methods = ('GD','SGD','NN')
+current_milli_time = lambda: int(round(time.time() * 1000))
+#TIMING
+start = current_milli_time()
+logreg1 = logit(X_train, y_train, epochs=100, batch_s=100, eta_in=0.01, lamd=0.1,type='Vanilla')
+acc[0] = accuracy_score_numpy(logreg1.predict(X_test,classify=True),y_test)
+end = current_milli_time()
+timing[0]= (end - start)
 
-logreg_sgd = logit(X_train, y_train, epochs=100, batch_s=100, eta_in=0.001, type='SGD')
-logreg_van = logit(X_train, y_train, epochs=100, batch_s=100, eta_in=0.0001, type='Vanilla')
-neural = NeuralNetwork(X_train, y_train, sizes=sizes, epochs=20, batch_size=500, eta=0.001,lmbd=10)
+start = current_milli_time()
+logreg2 = logit(X_train, y_train, epochs=100, batch_s=100, eta_in=0.1, lamd=0.001,type='SGD')
+acc[1] = accuracy_score_numpy(logreg2.predict(X_test,classify=True),y_test)
+end = current_milli_time()
+timing[1]= (end - start)
 
-#probabilities = Object.predict(X_test, classify=True)
-#y_pred = logreg.predict(X_test,classify=True)
-#print(f1_score(y_test, y_pred))
+start = current_milli_time()
+NN = NeuralNetwork(X_train, y_train,sizes=sizes,epochs=100, batch_size=100, eta=0.01, lmbd=0.01)
+acc[2] = accuracy_score_numpy(NN.predict(X_test,y_test,classify=True)[0],y_test)
+end = current_milli_time()
+timing[2]= (end - start)
+
+y_pos = np.arange(len(methods))
+width = 0.35
+print(acc)
+fig, ax1 = plt.subplots()
+color = 'tab:red'
+ax1.bar(y_pos-width/2, timing, width, color=color)
+plt.xticks(y_pos, methods)
+ax1.set_ylabel('Time [ms]',color=color)
+plt.title('')
+ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+color = 'tab:blue'
+ax2.set_ylabel('Accuracy', color=color)  # we already handled the x-label with ax1
+ax2.bar(y_pos+width/2, acc,width, color=color)
+ax2.set_ylim([0.75,0.9])
+fig.tight_layout()
+plt.show()
+'''
 
 
+
+#logreg_van = logit(X_train, y_train, epochs=100, batch_s=100, eta_in=0.01, lamd=0.1,type='Vanilla')
+#logreg_sgd = logit(X_train, y_train, epochs=100, batch_s=100, eta_in=0.1, lamd=0.001,type='SGD')
+#neural = NeuralNetwork(X_train, y_train,sizes=sizes,epochs=100, batch_size=100, eta=0.01, lmbd=0.01)
+
+
+#logreg_van_res = logit(X_train_new, y_train_new, epochs=100, batch_s=100, eta_in=0.1, lamd=0.01,type='Vanilla')
+#logreg_van_res = logit(X=X_train_new,y=y_train_new,epochs=100,batch_s=100,eta_in=1,lamd=0.0001,type='Vanilla')
+#logreg_sgd_res = logit(X_train_new, y_train_new, epochs=100, batch_s=100, eta_in=1, lamd=0.01,type='SGD')
+#neural_res = NeuralNetwork(X_train_new, y_train_new,sizes=sizes,epochs=100, batch_size=100, eta=0.1, lmbd=0.01)
+
+
+
+#y_pred_sgd_res = logreg_sgd_res.predict(X_test,classify=True)
+#y_pred_sgd = logreg_sgd.predict(X_test,classify=True)
+
+#y_pred_van_res = logreg_van_res.predict(X_test,classify=True)
+#y_pred_van = logreg_van.predict(X_test,classify=True)
+#print("Accuracy: ",accuracy_score_numpy(y_pred_van_res,y_test))
+
+#y_pred_neu_res,l = neural_res.predict(X_test,y_test,classify=True)
+#y_pred_neu,l = neural.predict(X_test,y_test,classify=True)
+
+
+#print(cmtx)
+class_names = [0, 1]
+#plot_confusion_matrix(y_test, y_pred_sgd, classes=class_names, title='SGD',normalize=True)
+#plot_confusion_matrix(y_test, y_pred_sgd_res, classes=class_names, title='SGD: Resampled Training Data',normalize=True)
+
+#plot_confusion_matrix(y_test, y_pred_van, classes=class_names, title='GD',normalize=True)
+#plot_confusion_matrix(y_test, y_pred_van_res, classes=class_names, title='GD: Resampled Training Data',normalize=True)
+
+#plot_confusion_matrix(y_test, y_pred_neu, classes=class_names, title='NN',normalize=True)
+#plot_confusion_matrix(y_test, y_pred_neu_res, classes=class_names, title='NN: Resampled Training Data',normalize=True)
+#plt.show()
+'''
 y_probas_sgd = logreg_sgd.predict(X_test)
+
 y_probas_sgd2 = np.zeros(y_probas_sgd.shape)
 for i in range(len(y_probas_sgd)):
     y_probas_sgd2[i] = 1 - y_probas_sgd[i,0]
 y_probas_sgd = np.c_[y_probas_sgd2,y_probas_sgd]
 
 
-y_probas_van = logreg_van.predict(X_test)
+y_probas_van = logreg_van_res.predict(X_test)
 y_probas_van2 = np.zeros(y_probas_van.shape)
 for i in range(len(y_probas_van)):
     y_probas_van2[i] = 1 - y_probas_van[i,0]
@@ -284,17 +356,33 @@ y_probas_neu = np.c_[y_probas_neu2,y_probas_neu]
 
 x_bc = np.zeros((n_defaults,1))
 y_bc = np.zeros(x_bc.shape)
-fig, axes = plt.subplots(1, 2)
-axes[0, 0] = skplt.metrics.plot_cumulative_gain(y_test, y_probas_sgd)
-axes[0, 1].scatter(x, y)
+#fig, axes = plt.subplots(1, 2)
+#axes[0, 0] = skplt.metrics.plot_cumulative_gain(y_test, y_probas_sgd)
+#axes[0, 1].scatter(x, y)
 
-
-fig = skplt.metrics.plot_cumulative_gain(y_test, y_probas_sgd)
-skplt.metrics.plot_cumulative_gain(y_test, y_probas_van)
-
+ax = skplt.metrics.plot_cumulative_gain(y_test, y_probas_van)
+#fig.title('Gradient Descent')
+#skplt.metrics.plot_cumulative_gain(y_test, y_probas_sgd)
 x_bc,y_bc = bestCurve(y_test)
 plt.plot(x_bc,y_bc)
 plt.show()
+
+#fig.title('Stoc Descent')
+
+#fig = skplt.metrics.plot_cumulative_gain(y_test, y_probas_sgd)
+#x_bc,y_bc = bestCurve(y_test)
+#plt.plot(x_bc,y_bc)
+#plt.show()
+
+#fig.title('Gradient Descent')
+
+#fig = skplt.metrics.plot_cumulative_gain(y_test, y_probas_neu)
+#x_bc,y_bc = bestCurve(y_test)
+#plt.plot(x_bc,y_bc)
+#plt.show()
+
+
+
 #probabilities = logreg.predict(X_test, classify=True)
 #print(probabilities.shape)
 
@@ -304,4 +392,5 @@ plt.show()
 # ax.set_xticklabels(0.5,1)
 
 #plt.show()
+
 '''
