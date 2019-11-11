@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from functions import logit, grid_search, NeuralNetwork
+from functions import *
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
@@ -215,17 +215,20 @@ sizes = [X_train.shape[1], 70, 50, 1]
 #sizes = [X_train_new.shape[1], 70, 50, 1]
 
 etas = np.logspace(-5, 1, 7)
-lambdas = np.logspace(-5, 2, 8)
+lambdas = [np.logspace(-5, 2, 8)]
+etas = np.append(etas,[11,12])
+print(lambdas)
+
 #lamb = np.logspace(-5, 2, 8)
 
-accuracies = np.zeros((len(etas),len(lambdas)))
-accuracies = grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes=sizes,etas=etas,lamdbdas = lambdas)
+#accuracies = np.zeros((len(etas),len(lambdas)))
+#accuracies = grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes=sizes,etas=etas,lamdbdas = lambdas)
 #accuracies = grid_search(NeuralNetwork,X_train_new,y_train_new,X_test,y_test,sizes,etas,lambdas)
 
 #accuracies = np.zeros((len(etas),1))
 #accuracies = grid_search(logit,X_train,y_train,X_test,y_test,sizes=sizes,etas=etas,lamdbdas=lambdas)
 #accuracies = grid_search(logit,X_train_new,y_train_new,X_test,y_test,sizes,etas,lamdbdas = lambdas)
-
+accuracies = test_keras(X_train,y_train,X_test,y_test,sizes,etas,lambdas)
 
 
 print(np.amax(accuracies))
