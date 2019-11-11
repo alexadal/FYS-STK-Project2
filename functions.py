@@ -934,8 +934,8 @@ if __name__ == "__main__":
     #lamb = np.geomspace(1,100,10)
     #lamb = np.zeros(1)
     #Run test funtion
-    #grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
-    #grid_search(NeuralNetwork,X_train,y_train,X_train,y_train,sizes,etas,lamb)
+    grid_search(logit,X_train,y_train,X_test,y_test,sizes,etas,lamb)
+    grid_search(NeuralNetwork,X_train,y_train,X_train,y_train,sizes,etas,lamb)
     grid_search(NeuralNetwork,X_train,y_train,X_test,y_test,sizes,etas,lamb,MSE=True)
 
     #check_hist(NeuralNetwork, X_train, y_train, X_test, y_test, sizes, etas[5], lamb[3])
